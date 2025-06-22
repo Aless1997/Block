@@ -1,3 +1,4 @@
-startCommand: >
-  python manage.py migrate --noinput &&
-  gunicorn Cripto.wsgi --bind 0.0.0.0:$PORT
+jobs:
+  migrate:
+    env: python
+    runCommand: python manage.py migrate --noinput
