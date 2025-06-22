@@ -19,14 +19,6 @@ from django.core.management import call_command
 import sys
 
 
-if 'runserver' in sys.argv or 'gunicorn' in sys.argv:
-    django.setup()
-    try:
-        call_command('migrate', interactive=False)
-        print("Migrazioni eseguite con successo.")
-    except Exception as e:
-        print(f"Errore durante la migrazione: {e}")
-
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -90,11 +82,10 @@ WSGI_APPLICATION = 'Cripto.wsgi.application'
 
 
 DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get("DATABASE_URL"),
-        conn_max_age=600,
-        ssl_require=True  # se usi DB remoto con SSL (come Render)
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
 }
 
 
