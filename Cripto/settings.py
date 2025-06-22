@@ -16,13 +16,16 @@ import dj_database_url
 
 import django
 from django.core.management import call_command
+import sys
 
-try:
+
+if 'runserver' in sys.argv or 'gunicorn' in sys.argv:
     django.setup()
-    call_command('migrate', interactive=False)
-    print("Migrations applied successfully.")
-except Exception as e:
-    print(f"Migration error: {e}")
+    try:
+        call_command('migrate', interactive=False)
+        print("Migrazioni eseguite con successo.")
+    except Exception as e:
+        print(f"Errore durante la migrazione: {e}")
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
