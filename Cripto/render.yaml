@@ -2,7 +2,14 @@ services:
   - type: web
     name: cripto-web
     env: python
-    buildCommand: |
-      pip install -r requirements.txt
-      python manage.py migrate   # <-- esegue le migrazioni automaticamente
-    startCommand: gunicorn Cripto.wsgi --bind 0.0.0.0:$PORT
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: >
+      bash -c "python manage.py migrate --noinput &&
+               gunicorn Cripto.wsgi --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: DATABASE_URL
+        value: "postgresql://block_a9k6_user:password@host:port/dbname"
+      - key: SECRET_KEY
+        value: "django-insecure-your-secret-key"
+      # altre variabili ambiente che ti servono
