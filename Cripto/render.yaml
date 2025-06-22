@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: cripto-web
+    env: python
+    buildCommand: |
+      pip install -r requirements.txt
+      python manage.py migrate   # <-- esegue le migrazioni automaticamente
+    startCommand: gunicorn Cripto.wsgi --bind 0.0.0.0:$PORT
