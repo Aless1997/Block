@@ -1,0 +1,168 @@
+{% extends 'Cripto1/base.html' %}
+
+{% block title %}Modifica Profilo - Blockchain App{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <h2 class="mb-0 fw-bold">Impostazioni Profilo</h2>
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-0">
+                        <li class="breadcrumb-item"><a href="{% url 'Cripto1:dashboard' %}">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Impostazioni</li>
+                    </ol>
+                </nav>
+            </div>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show d-flex align-items-center" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <div>{{ message }}</div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <div class="card mb-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-user-edit me-2"></i>Informazioni Personali
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-3 text-center mb-4">
+                                <div class="position-relative d-inline-block">
+                                    {% if user_profile.profile_picture %}
+                                        <img src="{{ user_profile.profile_picture.url }}" class="rounded-circle img-thumbnail" style="width: 150px; height: 150px; object-fit: cover;" alt="Profile Picture">
+                                    {% else %}
+                                        <div class="rounded-circle bg-light d-flex align-items-center justify-content-center" style="width: 150px; height: 150px;">
+                                            <i class="fas fa-user fa-4x text-secondary"></i>
+                                        </div>
+                                    {% endif %}
+                                    <label for="id_profile_picture" class="position-absolute bottom-0 end-0 bg-white rounded-circle p-2 shadow-sm" style="cursor: pointer;">
+                                        <i class="fas fa-camera text-primary"></i>
+                                    </label>
+                                    <input type="file" class="d-none" id="id_profile_picture" name="profile_picture" accept="image/*">
+                                </div>
+                            </div>
+                            <div class="col-md-9">
+                                {{ form.as_p }}
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Salva Modifiche
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-lock me-2"></i>Sicurezza Account
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-4">
+                        <div>
+                            <h6 class="mb-1">Password Account</h6>
+                            <p class="text-muted mb-0 small">Modifica la password del tuo account</p>
+                        </div>
+                        <a href="{% url 'password_change' %}" class="btn btn-outline-primary">
+                            <i class="fas fa-key me-2"></i>Cambia Password
+                        </a>
+                    </div>
+                    <hr>
+                    <div class="mt-4">
+                        <h6 class="mb-3">Password Chiave Privata</h6>
+                        <form method="post" action="{% url 'Cripto1:reset_private_key_password' %}" class="needs-validation" novalidate>
+                            {% csrf_token %}
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="form-floating">
+                                        <input type="password" class="form-control" id="current_private_key_password" name="current_private_key_password" required>
+                                        <label for="current_private_key_password">Password Attuale</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="private_key_hash" name="private_key_hash" required>
+                                        <label for="private_key_hash">Hash Chiave</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-floating">
+                                        <input type="password" class="form-control" id="new_private_key_password" name="new_private_key_password" required>
+                                        <label for="new_private_key_password">Nuova Password</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-end mt-3">
+                                <button type="submit" class="btn btn-warning">
+                                    <i class="fas fa-sync-alt me-2"></i>Reimposta Password
+                                </button>
+                            </div>
+                        </form>
+                        {% if reset_private_key_message %}
+                            <div class="alert alert-info mt-3">
+                                <i class="fas fa-info-circle me-2"></i>{{ reset_private_key_message }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Preview profile picture before upload
+    const profilePicInput = document.getElementById('id_profile_picture');
+    profilePicInput.addEventListener('change', function(e) {
+        if (this.files && this.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.querySelector('.rounded-circle.img-thumbnail') || 
+                           document.querySelector('.rounded-circle.bg-light');
+                if (img.tagName === 'IMG') {
+                    img.src = e.target.result;
+                } else {
+                    const newImg = document.createElement('img');
+                    newImg.src = e.target.result;
+                    newImg.classList.add('rounded-circle', 'img-thumbnail');
+                    newImg.style.width = '150px';
+                    newImg.style.height = '150px';
+                    newImg.style.objectFit = 'cover';
+                    img.parentNode.replaceChild(newImg, img);
+                }
+            }
+            reader.readAsDataURL(this.files[0]);
+        }
+    });
+
+    // Form validation
+    const forms = document.querySelectorAll('.needs-validation');
+    Array.from(forms).forEach(form => {
+        form.addEventListener('submit', event => {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        }, false);
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

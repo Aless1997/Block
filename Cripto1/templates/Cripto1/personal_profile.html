@@ -1,0 +1,143 @@
+{% extends 'Cripto1/base.html' %}
+
+{% block title %}Profilo Personale - Blockchain App{% endblock %}
+
+{% block content %}
+<style>
+    .profile-pic {
+        width: 100px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 50%;
+        margin-right: 20px;
+        border: 2px solid #007bff;
+    }
+    .profile-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 20px;
+        flex-direction: column;
+        text-align: center;
+    }
+    .profile-info {
+        flex-grow: 1;
+        width: 100%;
+        margin-top: 15px;
+    }
+    @media (min-width: 768px) {
+        .profile-header {
+            flex-direction: row;
+            text-align: left;
+        }
+        .profile-info {
+            margin-top: 0;
+        }
+    }
+    .card-text code {
+        word-break: break-all;
+        white-space: normal;
+    }
+    .action-cards {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    @media (min-width: 768px) {
+        .action-cards {
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        }
+    }
+</style>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Profilo Personale</h2>
+        <div>
+            <!-- Removed the buttons from here -->
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="profile-header">
+                {% if user_profile.profile_picture %}
+                    <img src="{{ user_profile.profile_picture.url }}" alt="Profile Picture" class="profile-pic">
+                {% else %}
+                    {# Placeholder image or icon if no profile picture is set #}
+                    <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" fill="currentColor" class="bi bi-person-circle profile-pic" viewBox="0 0 16 16">
+                      <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0"/>
+                      <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"/>
+                    </svg>
+                {% endif %}
+                <div class="profile-info">
+                    <h5 class="card-title">Utente: {{ user_profile.user.username }}</h5>
+                    <p class="card-text">
+                        <strong>Nome:</strong> {{ user_profile.user.first_name|default:"N/A" }}
+                    </p>
+                    <p class="card-text">
+                        <strong>Cognome:</strong> {{ user_profile.user.last_name|default:"N/A" }}
+                    </p>
+                     <p class="card-text">
+                        <strong>Email:</strong> {{ user_profile.user.email|default:"N/A" }}
+                    </p>
+                     <p class="card-text">
+                        <small class="text-muted">Registrato il: {{ user_profile.created_at|date:"d/m/Y H:i" }}</small>
+                    </p>
+                </div>
+            </div>
+
+            <p class="card-text">
+                <strong>Chiave Pubblica:</strong><br>
+                <code class="bg-light p-2 d-block text-break">{{ user_profile.user_key }}</code>
+            </p>
+            <p class="card-text">
+                <strong>Hash Chiave Privata:</strong><br>
+                {% if user_profile.private_key_hash %}
+                    <code class="bg-light p-2 d-block text-break">{{ user_profile.private_key_hash }}</code>
+                {% else %}
+                    <span class="text-danger">Nessuna chiave privata trovata.</span>
+                {% endif %}
+            </p>
+            <!--<p class="card-text">
+                <strong>Saldo:</strong> {{ user_profile.balance|floatformat:"2" }} CA$
+            </p>-->
+
+        </div>
+    </div>
+
+    <div class="action-cards">
+        <!-- Modifica Profilo Card -->
+        <div class="card text-center mb-3">
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title">Modifica Profilo</h5>
+                <p class="card-text">Aggiorna le tue informazioni personali e le impostazioni del profilo.</p>
+                <a href="{% url 'Cripto1:edit_profile' %}" class="btn btn-secondary mt-auto">Modifica Profilo</a>
+            </div>
+        </div>
+
+        <!-- Admin Dashboard Card (Conditional) -->
+        {% if user.is_staff or user.is_superuser %}
+        <div class="card text-center mb-3">
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title">Admin Dashboard</h5>
+                <p class="card-text">Accedi al pannello di amministrazione per gestire gli utenti e il sistema.</p>
+                <a href="{% url 'Cripto1:admin_dashboard' %}" class="btn btn-info mt-auto">Admin Dashboard</a>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Visualizza tutti i movimenti Card -->
+        <div class="card text-center mb-3">
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title">Visualizza tutti i movimenti</h5>
+                <p class="card-text">Esamina la cronologia completa delle tue transazioni e movimenti.</p>
+                <a href="{% url 'Cripto1:all_transactions' %}" class="btn btn-primary mt-auto">Visualizza tutti i movimenti</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+{% endblock %}
