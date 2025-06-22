@@ -1,4 +1,0 @@
-jobs:
-  migrate:
-    env: python
-    runCommand: python manage.py migrate --noinput
