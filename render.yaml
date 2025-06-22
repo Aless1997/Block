@@ -1,0 +1,3 @@
+startCommand: >
+  python manage.py migrate --noinput &&
+  gunicorn Cripto.wsgi --bind 0.0.0.0:$PORT
