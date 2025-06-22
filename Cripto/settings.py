@@ -14,6 +14,16 @@ import os
 from pathlib import Path
 import dj_database_url
 
+import django
+from django.core.management import call_command
+
+try:
+    django.setup()
+    call_command('migrate', interactive=False)
+    print("Migrations applied successfully.")
+except Exception as e:
+    print(f"Migration error: {e}")
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
