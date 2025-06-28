@@ -320,4 +320,129 @@
         });
     });
 </script>
+
+<!-- Sezione Casi d'Uso Reali -->
+<section class="use-cases-section py-5">
+  <div class="container">
+    <h2 class="text-center mb-5 fw-bold text-gradient">Casi Reali di Utilizzo</h2>
+    <div class="row g-4">
+      <!-- Ambito Aziendale -->
+      <div class="col-lg-3 col-md-6">
+        <div class="use-case-card h-100" style="--card-index: 0;" data-aos="fade-up">
+          <div class="card-icon mb-4">
+            <i class="fas fa-building fa-3x text-primary"></i>
+          </div>
+          <h3 class="h4 mb-3">Ambito Aziendale</h3>
+          <ul class="list-unstyled">
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Scambio sicuro di documenti sensibili</li>
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Comunicazioni riservate tra dipartimenti</li>
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Tracciamento di contratti e accordi</li>
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Archiviazione sicura di documenti</li>
+          </ul>
+        </div>
+      </div>
+      <!-- Settore Legale -->
+      <div class="col-lg-3 col-md-6">
+        <div class="use-case-card h-100" style="--card-index: 1;" data-aos="fade-up" data-aos-delay="100">
+          <div class="card-icon mb-4">
+            <i class="fas fa-balance-scale fa-3x text-info"></i>
+          </div>
+          <h3 class="h4 mb-3">Settore Legale</h3>
+          <ul class="list-unstyled">
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Gestione documenti legali</li>
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Scambio sicuro di atti</li>
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Verifica dell'integrità documentale</li>
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Timestamping certificato</li>
+          </ul>
+        </div>
+      </div>
+      <!-- Settore Sanitario -->
+      <div class="col-lg-3 col-md-6">
+        <div class="use-case-card h-100" style="--card-index: 2;" data-aos="fade-up" data-aos-delay="200">
+          <div class="card-icon mb-4">
+            <i class="fas fa-hospital-user fa-3x text-danger"></i>
+          </div>
+          <h3 class="h4 mb-3">Settore Sanitario</h3>
+          <ul class="list-unstyled">
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Scambio di documenti medici</li>
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Gestione referti in sicurezza</li>
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Comunicazioni medico-paziente</li>
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Archiviazione dati sensibili</li>
+          </ul>
+        </div>
+      </div>
+      <!-- Settore Finanziario -->
+      <div class="col-lg-3 col-md-6">
+        <div class="use-case-card h-100" style="--card-index: 3;" data-aos="fade-up" data-aos-delay="300">
+          <div class="card-icon mb-4">
+            <i class="fas fa-chart-line fa-3x text-warning"></i>
+          </div>
+          <h3 class="h4 mb-3">Settore Finanziario</h3>
+          <ul class="list-unstyled">
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Transazioni finanziarie sicure</li>
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Documentazione bancaria</li>
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Contratti assicurativi</li>
+            <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Gestione investimenti</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+.use-cases-section {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  color: #212529;
+}
+.use-case-card {
+  background: rgba(255,255,255,0.95);
+  border: 1px solid rgba(0,0,0,0.07);
+  border-radius: 1.5rem;
+  padding: 2rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.07);
+  transition: all 0.4s cubic-bezier(.4,2,.6,1);
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeInUp 0.6s cubic-bezier(.4,2,.6,1) forwards;
+  animation-delay: calc(var(--card-index) * 0.12s);
+  position: relative;
+  overflow: hidden;
+}
+.use-case-card:hover {
+  transform: translateY(-8px) scale(1.03);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.13);
+  background: rgba(255,255,255,1);
+}
+.card-icon {
+  transition: transform 0.4s cubic-bezier(.4,2,.6,1);
+}
+.use-case-card:hover .card-icon {
+  transform: scale(1.13) rotate(-4deg);
+}
+.use-case-card ul li {
+  opacity: 0.92;
+  transition: opacity 0.3s;
+}
+.use-case-card:hover ul li {
+  opacity: 1;
+}
+.text-gradient {
+  background: linear-gradient(120deg, #60a5fa, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+@media (max-width: 991.98px) {
+  .use-case-card { margin-bottom: 2rem; }
+}
+</style>
+
+<!-- Assicurati che la libreria AOS sia inclusa nel tuo template base o in questa pagina -->
+<link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  AOS.init({ duration: 800, once: true });
+});
+</script>
 {% endblock %}

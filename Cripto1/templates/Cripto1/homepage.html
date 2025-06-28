@@ -53,6 +53,78 @@
     </div>
 </div>
 
+<!-- Sezione Casi d'Uso -->
+<div class="use-cases-section py-5">
+    <div class="container">
+        <h2 class="text-center mb-5 text-gradient">Casi Reali di Utilizzo</h2>
+        <div class="row g-4">
+            <!-- Ambito Aziendale -->
+            <div class="col-lg-3 col-md-6">
+                <div class="use-case-card h-100" style="--card-index: 0;">
+                    <div class="card-icon mb-4">
+                        <i class="fas fa-building fa-3x text-primary"></i>
+                    </div>
+                    <h3 class="h4 mb-3">Ambito Aziendale</h3>
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Scambio sicuro di documenti sensibili</li>
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Comunicazioni riservate tra dipartimenti</li>
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Tracciamento di contratti e accordi</li>
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Archiviazione sicura di documenti</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Settore Legale -->
+            <div class="col-lg-3 col-md-6">
+                <div class="use-case-card h-100" style="--card-index: 1;">
+                    <div class="card-icon mb-4">
+                        <i class="fas fa-balance-scale fa-3x text-info"></i>
+                    </div>
+                    <h3 class="h4 mb-3">Settore Legale</h3>
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Gestione documenti legali</li>
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Scambio sicuro di atti</li>
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Verifica dell'integrità documentale</li>
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Timestamping certificato</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Settore Sanitario -->
+            <div class="col-lg-3 col-md-6">
+                <div class="use-case-card h-100" style="--card-index: 2;">
+                    <div class="card-icon mb-4">
+                        <i class="fas fa-hospital-user fa-3x text-danger"></i>
+                    </div>
+                    <h3 class="h4 mb-3">Settore Sanitario</h3>
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Scambio di documenti medici</li>
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Gestione referti in sicurezza</li>
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Comunicazioni medico-paziente</li>
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Archiviazione dati sensibili</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Settore Finanziario -->
+            <div class="col-lg-3 col-md-6">
+                <div class="use-case-card h-100" style="--card-index: 3;">
+                    <div class="card-icon mb-4">
+                        <i class="fas fa-chart-line fa-3x text-warning"></i>
+                    </div>
+                    <h3 class="h4 mb-3">Settore Finanziario</h3>
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Transazioni finanziarie sicure</li>
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Documentazione bancaria</li>
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Contratti assicurativi</li>
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Gestione investimenti</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
     .hero-section {
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
@@ -131,6 +203,54 @@
     @media (max-width: 991.98px) {
         .hero-section {
             text-align: center;
+        }
+    }
+
+    /* Stili per la sezione casi d'uso */
+    .use-cases-section {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        color: white;
+    }
+
+    .use-case-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+        transition: all 0.3s ease;
+        opacity: 0;
+        transform: translateY(20px);
+        animation: fadeInUp 0.5s ease forwards;
+        animation-delay: calc(var(--card-index) * 0.1s);
+    }
+
+    .use-case-card:hover {
+        transform: translateY(-5px);
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-icon {
+        transition: transform 0.3s ease;
+    }
+
+    .use-case-card:hover .card-icon {
+        transform: scale(1.1);
+    }
+
+    .use-case-card ul li {
+        opacity: 0.9;
+        transition: opacity 0.3s ease;
+    }
+
+    .use-case-card:hover ul li {
+        opacity: 1;
+    }
+
+    @media (max-width: 991.98px) {
+        .use-case-card {
+            margin-bottom: 2rem;
         }
     }
 </style>
