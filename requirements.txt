@@ -1,7 +1,0 @@
-Django>=5.2.1
-cryptography>=41.0.0
-Pillow>=10.0.0  # Per la gestione delle immagini
-django-encrypted-model-fields>=0.6.5  # Per i campi crittografati nel modello
-gunicorn
-dj_database_url
-psycopg2
