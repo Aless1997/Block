@@ -1,5 +1,8 @@
 from django.utils.deprecation import MiddlewareMixin
-from .models import AuditLog
+from django.shortcuts import redirect
+from django.contrib import messages
+from django.utils import timezone
+from .models import AuditLog, UserProfile
 import json
 print("=== AuditLogMiddleware caricato ===")
 
@@ -163,4 +166,117 @@ class AuditLogMiddleware(MiddlewareMixin):
         elif view_name == 'admin_user_detail':
             data['target_user_id'] = request.resolver_match.kwargs.get('user_id')
         
-        return data 
+        return data
+
+
+class SecurityMiddleware(MiddlewareMixin):
+    """
+    Middleware per la gestione della sicurezza e dei tentativi di login
+    """
+    
+    def __init__(self, get_response):
+        super().__init__(get_response)
+        # Percorsi esenti dal controllo di sicurezza
+        self.exempt_paths = [
+            '/admin/',
+            '/static/',
+            '/media/',
+            '/favicon.ico',
+        ]
+    
+    def process_request(self, request):
+        # Controlla se il percorso è esente
+        if any(request.path.startswith(path) for path in self.exempt_paths):
+            return None
+        
+        # Gestione tentativi di login falliti
+        if request.path == '/login/' and request.method == 'POST':
+            self.handle_login_attempt(request)
+        
+        # Controllo account bloccati per utenti autenticati
+        if hasattr(request, 'user') and request.user.is_authenticated:
+            self.check_user_status(request)
+        
+        return None
+    
+    def handle_login_attempt(self, request):
+        """Gestisce i tentativi di login e il blocco account"""
+        username = request.POST.get('username')
+        if not username:
+            return
+        
+        try:
+            user = UserProfile.objects.get(user__username=username)
+            
+            # Se l'account è bloccato, incrementa i tentativi e logga
+            if user.is_locked():
+                user.increment_login_attempts()
+                
+                # Log dell'evento di sicurezza
+                AuditLog.log_action(
+                    action_type='SECURITY_EVENT',
+                    description=f'Tentativo di login su account bloccato: {username}',
+                    severity='HIGH',
+                    ip_address=self.get_client_ip(request),
+                    user_agent=request.META.get('HTTP_USER_AGENT', ''),
+                    success=False,
+                    error_message='Account temporaneamente bloccato'
+                )
+                
+                messages.error(request, 'Account temporaneamente bloccato. Riprova più tardi.')
+                return
+            
+            # Se il login fallisce, incrementa i tentativi
+            if request.method == 'POST' and hasattr(request, 'resolver_match') and request.resolver_match and 'login_view' in request.resolver_match.view_name:
+                # Il controllo del successo del login viene fatto nella view
+                # Qui gestiamo solo il fallimento
+                pass
+                
+        except UserProfile.DoesNotExist:
+            # Log del tentativo di login con username inesistente
+            AuditLog.log_action(
+                action_type='SECURITY_EVENT',
+                description=f'Tentativo di login con username inesistente: {username}',
+                severity='MEDIUM',
+                ip_address=self.get_client_ip(request),
+                user_agent=request.META.get('HTTP_USER_AGENT', ''),
+                success=False,
+                error_message='Username non trovato'
+            )
+    
+    def check_user_status(self, request):
+        """Controlla lo stato dell'utente autenticato"""
+        try:
+            user_profile = UserProfile.objects.get(user=request.user)
+            
+            # Controlla se l'account è attivo
+            if not user_profile.is_active:
+                messages.error(request, 'Il tuo account è stato disattivato.')
+                from django.contrib.auth import logout
+                logout(request)
+                return redirect('Cripto1:login')
+            
+            # Controlla se l'account è bloccato
+            if user_profile.is_locked():
+                messages.error(request, 'Il tuo account è temporaneamente bloccato.')
+                from django.contrib.auth import logout
+                logout(request)
+                return redirect('Cripto1:login')
+            
+            # Aggiorna le informazioni dell'ultimo login
+            if not hasattr(request, '_last_login_updated'):
+                user_profile.update_last_login(self.get_client_ip(request))
+                request._last_login_updated = True
+                
+        except UserProfile.DoesNotExist:
+            # Se non esiste un profilo, creane uno
+            UserProfile.objects.create(user=request.user)
+    
+    def get_client_ip(self, request):
+        """Ottiene l'IP reale del client anche dietro proxy"""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip 

@@ -157,6 +157,41 @@
                                 <i class="fas fa-users me-2"></i> Users
                             </a>
                         </li>
+                        {% if user.is_superuser or user.is_staff %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-cogs me-2"></i> Amministrazione
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="adminDropdown">
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'Cripto1:admin_dashboard' %}">
+                                        <i class="fas fa-tachometer-alt me-2"></i> Dashboard Admin
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'Cripto1:user_management_dashboard' %}">
+                                        <i class="fas fa-user-cog me-2"></i> Gestione Utenti
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'Cripto1:audit_logs' %}">
+                                        <i class="fas fa-history me-2"></i> Log Attività
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'Cripto1:security_alerts' %}">
+                                        <i class="fas fa-shield-alt me-2"></i> Allerte Sicurezza
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'admin:index' %}">
+                                        <i class="fas fa-database me-2"></i> Django Admin
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                        {% endif %}
                         <li class="nav-item">
                             <form action="{% url 'Cripto1:logout' %}" method="post" style="display: inline;">
                                 {% csrf_token %}

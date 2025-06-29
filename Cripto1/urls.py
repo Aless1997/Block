@@ -4,7 +4,6 @@ from . import views
 from django.contrib.auth import views as auth_views
 from django.urls import reverse_lazy
 from django.urls import path
-from . import views
 
 app_name = 'Cripto1'
 
@@ -42,6 +41,21 @@ urlpatterns = [
     path('audit-logs/export/', views.export_audit_logs, name='export_audit_logs'),
     path('audit-logs/analytics/', views.audit_logs_analytics, name='audit_logs_analytics'),
     path('security-alerts/', views.security_alerts, name='security_alerts'),
+
+    # User Management URLs
+    path('user-management/', views.user_management_dashboard, name='user_management_dashboard'),
+    path('user-management/users/', views.user_list, name='user_list'),
+    path('user-management/users/create/', views.create_user, name='create_user'),
+    path('user-management/users/<int:user_id>/', views.user_detail, name='user_detail'),
+    path('user-management/users/<int:user_id>/edit/', views.edit_user, name='edit_user'),
+    path('user-management/users/<int:user_id>/toggle-status/', views.toggle_user_status, name='toggle_user_status'),
+    path('user-management/users/<int:user_id>/assign-role/', views.assign_role, name='assign_role'),
+    path('user-management/users/<int:user_id>/remove-role/<int:role_id>/', views.remove_role, name='remove_role'),
+    
+    # Role Management URLs
+    path('user-management/roles/', views.role_list, name='role_list'),
+    path('user-management/roles/create/', views.create_role, name='create_role'),
+    path('user-management/roles/<int:role_id>/', views.role_detail, name='role_detail'),
 
     # Blockchain mining
     path('mine-block/', views.mine_block, name='mine_block'),

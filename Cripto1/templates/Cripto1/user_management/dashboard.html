@@ -1,0 +1,294 @@
+{% extends 'Cripto1/base.html' %}
+{% load static %}
+
+{% block title %}Gestione Utenti - Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 15px;
+        padding: 20px;
+        color: white;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease;
+    }
+    
+    .stats-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .stats-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+    
+    .stats-label {
+        font-size: 1rem;
+        opacity: 0.9;
+    }
+    
+    .activity-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .role-stats {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .role-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .role-item:last-child {
+        border-bottom: none;
+    }
+    
+    .role-count {
+        background: #007bff;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 0.9rem;
+    }
+    
+    .quick-actions {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .action-btn {
+        display: inline-block;
+        padding: 10px 20px;
+        margin: 5px;
+        background: #007bff;
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        transition: background 0.3s ease;
+    }
+    
+    .action-btn:hover {
+        background: #0056b3;
+        color: white;
+        text-decoration: none;
+    }
+    
+    .recent-user {
+        display: flex;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .recent-user:last-child {
+        border-bottom: none;
+    }
+    
+    .user-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #007bff;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 15px;
+        font-weight: bold;
+    }
+    
+    .user-info {
+        flex: 1;
+    }
+    
+    .user-name {
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .user-details {
+        font-size: 0.9rem;
+        color: #666;
+    }
+    
+    .activity-item {
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+    
+    .activity-time {
+        font-size: 0.8rem;
+        color: #999;
+    }
+    
+    .activity-description {
+        margin-top: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="fas fa-users"></i> Gestione Utenti
+            </h1>
+        </div>
+    </div>
+
+    <!-- Statistiche principali -->
+    <div class="row">
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-number">{{ total_users }}</div>
+                <div class="stats-label">Utenti Totali</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-number">{{ active_users }}</div>
+                <div class="stats-label">Utenti Attivi</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-number">{{ inactive_users }}</div>
+                <div class="stats-label">Utenti Inattivi</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-number">{{ locked_users }}</div>
+                <div class="stats-label">Utenti Bloccati</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Azioni rapide -->
+        <div class="col-md-4">
+            <div class="quick-actions">
+                <h4><i class="fas fa-bolt"></i> Azioni Rapide</h4>
+                <div class="mt-3">
+                    <a href="{% url 'Cripto1:create_user' %}" class="action-btn">
+                        <i class="fas fa-user-plus"></i> Nuovo Utente
+                    </a>
+                    <a href="{% url 'Cripto1:user_list' %}" class="action-btn">
+                        <i class="fas fa-list"></i> Lista Utenti
+                    </a>
+                    <a href="{% url 'Cripto1:role_list' %}" class="action-btn">
+                        <i class="fas fa-user-tag"></i> Gestione Ruoli
+                    </a>
+                    <a href="{% url 'Cripto1:create_role' %}" class="action-btn">
+                        <i class="fas fa-plus"></i> Nuovo Ruolo
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistiche per ruolo -->
+        <div class="col-md-4">
+            <div class="role-stats">
+                <h4><i class="fas fa-chart-pie"></i> Utenti per Ruolo</h4>
+                <div class="mt-3">
+                    {% for role_name, count in role_stats.items %}
+                    <div class="role-item">
+                        <span>{{ role_name }}</span>
+                        <span class="role-count">{{ count }}</span>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted">Nessun ruolo assegnato</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Utenti recenti -->
+        <div class="col-md-4">
+            <div class="activity-card">
+                <h4><i class="fas fa-clock"></i> Utenti Recenti</h4>
+                <div class="mt-3">
+                    {% for user_profile in recent_users %}
+                    <div class="recent-user">
+                        <div class="user-avatar">
+                            {{ user_profile.user.username|first|upper }}
+                        </div>
+                        <div class="user-info">
+                            <div class="user-name">{{ user_profile.user.username }}</div>
+                            <div class="user-details">
+                                {{ user_profile.user.email|default:"Nessuna email" }}
+                                <br>
+                                <small>{{ user_profile.created_at|date:"d/m/Y H:i" }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted">Nessun utente recente</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attività recenti -->
+    <div class="row">
+        <div class="col-12">
+            <div class="activity-card">
+                <h4><i class="fas fa-history"></i> Attività Recenti</h4>
+                <div class="mt-3">
+                    {% for activity in recent_activities %}
+                    <div class="activity-item">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <strong>{{ activity.user.username|default:"Sistema" }}</strong>
+                                <span class="badge badge-{{ activity.severity|lower }}">{{ activity.severity }}</span>
+                            </div>
+                            <div class="activity-time">{{ activity.timestamp|date:"d/m/Y H:i" }}</div>
+                        </div>
+                        <div class="activity-description">
+                            {{ activity.description }}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted">Nessuna attività recente</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Aggiorna le statistiche ogni 30 secondi
+    setInterval(function() {
+        location.reload();
+    }, 30000);
+});
+</script>
+{% endblock %} 

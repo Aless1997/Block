@@ -5,6 +5,8 @@ import time
 import json
 from encrypted_model_fields.fields import EncryptedTextField
 from django.core.validators import FileExtensionValidator
+from django.utils import timezone
+from datetime import timedelta
 
 # Import for cryptography
 from cryptography.hazmat.backends import default_backend
@@ -130,6 +132,20 @@ class UserProfile(models.Model):
     balance = models.FloatField(default=0.0)
     created_at = models.DateTimeField(auto_now_add=True)
     profile_picture = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
+    
+    # Nuovi campi per il sistema di ruoli
+    is_active = models.BooleanField(default=True)
+    last_login_ip = models.GenericIPAddressField(null=True, blank=True)
+    last_login_date = models.DateTimeField(null=True, blank=True)
+    login_attempts = models.IntegerField(default=0)
+    locked_until = models.DateTimeField(null=True, blank=True)
+    sso_provider = models.CharField(max_length=50, blank=True, null=True)  # Per SSO
+    sso_id = models.CharField(max_length=255, blank=True, null=True)  # ID esterno per SSO
+    department = models.CharField(max_length=100, blank=True, null=True)
+    position = models.CharField(max_length=100, blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    emergency_contact = models.CharField(max_length=255, blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.user.username}'s Profile"
@@ -222,6 +238,90 @@ class UserProfile(models.Model):
             print(f"Error decrypting file content: {e}")
             return None
 
+    def get_roles(self):
+        """Restituisce tutti i ruoli attivi dell'utente"""
+        return Role.objects.filter(
+            user_assignments__user=self.user,
+            user_assignments__is_active=True
+        ).exclude(
+            user_assignments__expires_at__lt=timezone.now()
+        )
+
+    def has_role(self, role_name):
+        """Verifica se l'utente ha un determinato ruolo"""
+        return self.get_roles().filter(name=role_name).exists()
+
+    def has_permission(self, permission_codename):
+        """Verifica se l'utente ha un determinato permesso attraverso i suoi ruoli"""
+        return self.get_roles().filter(
+            permissions__codename=permission_codename,
+            permissions__is_active=True
+        ).exists()
+
+    def get_all_permissions(self):
+        """Restituisce tutti i permessi dell'utente"""
+        return Permission.objects.filter(
+            role__user_assignments__user=self.user,
+            role__user_assignments__is_active=True,
+            is_active=True
+        ).exclude(
+            role__user_assignments__expires_at__lt=timezone.now()
+        ).distinct()
+
+    def assign_role(self, role, assigned_by=None, expires_at=None, notes=""):
+        """Assegna un ruolo all'utente"""
+        user_role, created = UserRole.objects.get_or_create(
+            user=self.user,
+            role=role,
+            defaults={
+                'assigned_by': assigned_by,
+                'expires_at': expires_at,
+                'notes': notes
+            }
+        )
+        if not created:
+            user_role.is_active = True
+            user_role.expires_at = expires_at
+            user_role.notes = notes
+            user_role.save()
+        return user_role
+
+    def remove_role(self, role):
+        """Rimuove un ruolo dall'utente"""
+        try:
+            user_role = UserRole.objects.get(user=self.user, role=role)
+            user_role.is_active = False
+            user_role.save()
+            return True
+        except UserRole.DoesNotExist:
+            return False
+
+    def is_locked(self):
+        """Verifica se l'account è bloccato"""
+        if self.locked_until and timezone.now() < self.locked_until:
+            return True
+        return False
+
+    def increment_login_attempts(self):
+        """Incrementa i tentativi di login"""
+        self.login_attempts += 1
+        if self.login_attempts >= 5:  # Blocca dopo 5 tentativi
+            self.locked_until = timezone.now() + timedelta(minutes=30)
+        self.save()
+
+    def reset_login_attempts(self):
+        """Resetta i tentativi di login"""
+        self.login_attempts = 0
+        self.locked_until = None
+        self.save()
+
+    def update_last_login(self, ip_address=None):
+        """Aggiorna le informazioni dell'ultimo login"""
+        self.last_login_date = timezone.now()
+        if ip_address:
+            self.last_login_ip = ip_address
+        self.save()
+
 class SmartContract(models.Model):
     name = models.CharField(max_length=255, unique=True)
     code = models.TextField()
@@ -248,8 +348,6 @@ class BlockchainState(models.Model):
         return f"Blockchain State - Supply: {self.current_supply}"
 
 class AuditLog(models.Model):
-    """Sistema di audit log per tracciare tutte le azioni degli utenti"""
-    
     ACTION_TYPES = [
         ('LOGIN', 'Login'),
         ('LOGOUT', 'Logout'),
@@ -267,6 +365,11 @@ class AuditLog(models.Model):
         ('VERIFY_BLOCKCHAIN', 'Verifica Blockchain'),
         ('USER_MANAGEMENT', 'Gestione Utenti'),
         ('SYSTEM_EVENT', 'Evento di Sistema'),
+        ('ROLE_ASSIGNMENT', 'Assegnazione Ruolo'),
+        ('PERMISSION_CHANGE', 'Modifica Permessi'),
+        ('USER_ACTIVATION', 'Attivazione Utente'),
+        ('USER_DEACTIVATION', 'Disattivazione Utente'),
+        ('SSO_LOGIN', 'Login SSO'),
     ]
 
     SEVERITY_LEVELS = [
@@ -296,23 +399,19 @@ class AuditLog(models.Model):
         verbose_name_plural = "Audit Logs"
         indexes = [
             models.Index(fields=['user', 'action_type', 'timestamp']),
-            models.Index(fields=['action_type', 'timestamp']),
-            models.Index(fields=['severity', 'timestamp']),
+            models.Index(fields=['action_type', 'severity', 'timestamp']),
             models.Index(fields=['ip_address', 'timestamp']),
         ]
 
     def __str__(self):
-        return f"{self.action_type} - {self.user.username if self.user else 'Anonymous'} - {self.timestamp}"
+        return f"{self.action_type} - {self.user} - {self.timestamp}"
 
     @classmethod
     def log_action(cls, user=None, action_type=None, description="", severity='MEDIUM', 
                    ip_address=None, user_agent="", session_id="", related_object_type="", 
                    related_object_id=None, additional_data=None, success=True, error_message=""):
-        """
-        Metodo di classe per creare facilmente un audit log
-        """
+        """Metodo di classe per creare facilmente log di audit"""
         try:
-            action_type = action_type or 'SYSTEM_EVENT'
             return cls.objects.create(
                 user=user,
                 action_type=action_type,
@@ -328,9 +427,7 @@ class AuditLog(models.Model):
                 error_message=error_message
             )
         except Exception as e:
-            import traceback
-            print(f"ERROR: Failed to create audit log: {e}")
-            traceback.print_exc()
+            print(f"Errore durante la creazione del log di audit: {e}")
             return None
 
     def get_related_object(self):
@@ -339,13 +436,105 @@ class AuditLog(models.Model):
             return None
         
         try:
-            if self.related_object_type == 'Transaction':
-                return Transaction.objects.get(id=self.related_object_id)
-            elif self.related_object_type == 'Block':
-                return Block.objects.get(id=self.related_object_id)
-            elif self.related_object_type == 'UserProfile':
-                return UserProfile.objects.get(id=self.related_object_id)
-            elif self.related_object_type == 'User':
-                return User.objects.get(id=self.related_object_id)
-        except:
+            model_class = globals().get(self.related_object_type)
+            if model_class:
+                return model_class.objects.get(id=self.related_object_id)
+        except Exception:
             return None
+        return None
+
+# Sistema di Ruoli e Permessi
+class Permission(models.Model):
+    """Modello per i permessi granulari del sistema"""
+    name = models.CharField(max_length=100, unique=True)
+    codename = models.CharField(max_length=100, unique=True)
+    description = models.TextField()
+    category = models.CharField(max_length=50, choices=[
+        ('USER_MANAGEMENT', 'Gestione Utenti'),
+        ('TRANSACTION_MANAGEMENT', 'Gestione Transazioni'),
+        ('BLOCKCHAIN_MANAGEMENT', 'Gestione Blockchain'),
+        ('SYSTEM_ADMIN', 'Amministrazione Sistema'),
+        ('AUDIT_LOGS', 'Log di Audit'),
+        ('SECURITY', 'Sicurezza'),
+        ('REPORTS', 'Report e Analytics'),
+    ])
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['category', 'name']
+        verbose_name = "Permesso"
+        verbose_name_plural = "Permessi"
+
+    def __str__(self):
+        return f"{self.name} ({self.category})"
+
+class Role(models.Model):
+    """Modello per i ruoli utente"""
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField()
+    permissions = models.ManyToManyField(Permission, blank=True)
+    is_active = models.BooleanField(default=True)
+    is_system_role = models.BooleanField(default=False)  # Ruoli di sistema non possono essere eliminati
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = "Ruolo"
+        verbose_name_plural = "Ruoli"
+
+    def __str__(self):
+        return self.name
+
+    def has_permission(self, permission_codename):
+        """Verifica se il ruolo ha un determinato permesso"""
+        return self.permissions.filter(codename=permission_codename, is_active=True).exists()
+
+    def add_permission(self, permission_codename):
+        """Aggiunge un permesso al ruolo"""
+        try:
+            permission = Permission.objects.get(codename=permission_codename, is_active=True)
+            self.permissions.add(permission)
+            return True
+        except Permission.DoesNotExist:
+            return False
+
+    def remove_permission(self, permission_codename):
+        """Rimuove un permesso dal ruolo"""
+        try:
+            permission = Permission.objects.get(codename=permission_codename)
+            self.permissions.remove(permission)
+            return True
+        except Permission.DoesNotExist:
+            return False
+
+class UserRole(models.Model):
+    """Modello per l'assegnazione di ruoli agli utenti"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_roles')
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='user_assignments')
+    assigned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='role_assignments_made')
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True)  # Scadenza del ruolo
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = ['user', 'role']
+        ordering = ['-assigned_at']
+        verbose_name = "Ruolo Utente"
+        verbose_name_plural = "Ruoli Utente"
+
+    def __str__(self):
+        return f"{self.user.username} - {self.role.name}"
+
+    def is_expired(self):
+        """Verifica se il ruolo è scaduto"""
+        if self.expires_at:
+            return timezone.now() > self.expires_at
+        return False
+
+    def is_valid(self):
+        """Verifica se il ruolo è valido (attivo e non scaduto)"""
+        return self.is_active and not self.is_expired()

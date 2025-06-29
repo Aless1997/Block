@@ -1,9 +1,9 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import login, authenticate, logout
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
-from .models import Block, Transaction, UserProfile, SmartContract, BlockchainState, AuditLog
+from .models import Block, Transaction, UserProfile, SmartContract, BlockchainState, AuditLog, Permission, Role, UserRole
 from django.db import transaction, models
 import hashlib
 import json
@@ -33,6 +33,7 @@ import base64
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.urls import reverse
 from datetime import datetime, timedelta
+from django.core.exceptions import PermissionDenied
 
 cipher_suite = Fernet(settings.FERNET_KEY)
 
@@ -63,14 +64,66 @@ def login_view(request):
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
+        
+        # Controlla se l'utente esiste e il suo stato
+        try:
+            user_profile = UserProfile.objects.get(user__username=username)
+            
+            # Controlla se l'account è attivo
+            if not user_profile.is_active:
+                messages.error(request, 'Il tuo account è stato disattivato. Contatta l\'amministratore.')
+                return render(request, 'Cripto1/login.html')
+            
+            # Controlla se l'account è bloccato
+            if user_profile.is_locked():
+                messages.error(request, 'Il tuo account è temporaneamente bloccato. Riprova più tardi.')
+                return render(request, 'Cripto1/login.html')
+            
+        except UserProfile.DoesNotExist:
+            # Se non esiste un profilo, continua con l'autenticazione normale
+            pass
+        
         user = authenticate(request, username=username, password=password)
         
         if user is not None:
+            # Login riuscito
             login(request, user)
+            
+            # Resetta i tentativi di login e aggiorna le informazioni
+            try:
+                user_profile = UserProfile.objects.get(user=user)
+                user_profile.reset_login_attempts()
+                user_profile.update_last_login(request.META.get('REMOTE_ADDR'))
+            except UserProfile.DoesNotExist:
+                pass
+            
             messages.success(request, "Benvenuto! Hai effettuato l'accesso con successo.", extra_tags='welcome_toast')
-            return redirect('Cripto1:dashboard')  # Redirect to original dashboard
+            return redirect('Cripto1:dashboard')
         else:
-            messages.error(request, 'Credenziali non valide')
+            # Login fallito
+            try:
+                user_profile = UserProfile.objects.get(user__username=username)
+                user_profile.increment_login_attempts()
+                
+                # Log dell'evento di sicurezza
+                AuditLog.log_action(
+                    action_type='SECURITY_EVENT',
+                    description=f'Tentativo di login fallito per utente: {username}',
+                    severity='MEDIUM',
+                    ip_address=request.META.get('REMOTE_ADDR'),
+                    user_agent=request.META.get('HTTP_USER_AGENT', ''),
+                    success=False,
+                    error_message='Credenziali non valide'
+                )
+                
+                if user_profile.is_locked():
+                    messages.error(request, 'Troppi tentativi di login falliti. Il tuo account è stato temporaneamente bloccato.')
+                else:
+                    remaining_attempts = 5 - user_profile.login_attempts
+                    messages.error(request, f'Credenziali non valide. Tentativi rimanenti: {remaining_attempts}')
+                    
+            except UserProfile.DoesNotExist:
+                messages.error(request, 'Credenziali non valide')
             
     return render(request, 'Cripto1/login.html')
 
@@ -714,36 +767,16 @@ def download_file(request, transaction_id):
 
 @login_required
 def edit_profile(request):
-    user = request.user
-    user_profile = user.userprofile # Get the related UserProfile instance
-
+    user_profile = UserProfile.objects.get(user=request.user)
     if request.method == 'POST':
-        form = UserProfileEditForm(request.POST, request.FILES, instance=user) # Pass request.FILES to the form
-        
+        form = UserProfileEditForm(request.POST, request.FILES, instance=user_profile)
         if form.is_valid():
             form.save()
-            
-            # Handle file upload for profile picture
-            profile_picture_file = request.FILES.get('profile_picture')
-            if profile_picture_file:
-                # Ensure the upload directory exists
-                upload_dir = os.path.join(settings.MEDIA_ROOT, 'profile_pics')
-                if not os.path.exists(upload_dir):
-                    os.makedirs(upload_dir)
-                    
-                user_profile.profile_picture = profile_picture_file
-                user_profile.save()
-
-            messages.success(request, 'Il tuo profilo è stato aggiornato con successo.')
-            return redirect('Cripto1:personal_profile') # Redirect back to profile page
+            messages.success(request, 'Profilo aggiornato con successo')
+            return redirect('Cripto1:personal_profile')
     else:
-        form = UserProfileEditForm(instance=user)
-
-    context = {
-        'form': form,
-        'user_profile': user_profile,
-    }
-    return render(request, 'Cripto1/edit_profile.html', context)
+        form = UserProfileEditForm(instance=user_profile)
+    return render(request, 'Cripto1/edit_profile.html', {'form': form, 'user_profile': user_profile})
 
 @staff_member_required
 def admin_dashboard(request):
@@ -1226,3 +1259,456 @@ def security_alerts(request):
 def page_not_found(request, exception):
     return render(request, 'Cripto1/404.html', {},
                     status=404)
+
+def permission_denied(request, exception):
+    return render(request, 'Cripto1/403.html', {},
+                    status=403)
+
+# Funzione per verificare se l'utente è superuser o ha permessi di gestione utenti
+def has_user_management_permission(user):
+    if user.is_superuser:
+        return True
+    
+    # Verifica se l'utente ha il permesso di gestione utenti
+    user_roles = UserRole.objects.filter(
+        user=user,
+        is_active=True
+    ).filter(
+        Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
+    )
+    
+    for user_role in user_roles:
+        if user_role.role.permissions.filter(name__icontains='user_management').exists():
+            return True
+    
+    return False
+
+# Decoratore personalizzato per la gestione utenti
+def user_management_required(view_func):
+    def wrapper(request, *args, **kwargs):
+        if not has_user_management_permission(request.user):
+            raise PermissionDenied("Non hai i permessi per accedere a questa sezione.")
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+@login_required
+@user_management_required
+def user_management_dashboard(request):
+    """Dashboard principale per la gestione utenti"""
+    # Statistiche
+    total_users = UserProfile.objects.count()
+    active_users = UserProfile.objects.filter(is_active=True).count()
+    inactive_users = UserProfile.objects.filter(is_active=False).count()
+    locked_users = sum(
+        1 for u in UserProfile.objects.all()
+        if (u.is_locked() if callable(getattr(u, 'is_locked', None)) else getattr(u, 'is_locked', False))
+    )
+    
+    # Statistiche per ruolo
+    role_stats = {}
+    for role in Role.objects.all():
+        count = UserRole.objects.filter(role=role, is_active=True).count()
+        if count > 0:
+            role_stats[role.name] = count
+    
+    # Utenti recenti
+    recent_users = UserProfile.objects.order_by('-created_at')[:5]
+    
+    # Attività recenti
+    recent_activities = AuditLog.objects.filter(
+        action_type__in=['USER_CREATED', 'USER_UPDATED', 'USER_DELETED', 'ROLE_ASSIGNED', 'ROLE_REMOVED']
+    ).order_by('-timestamp')[:10]
+    
+    context = {
+        'total_users': total_users,
+        'active_users': active_users,
+        'inactive_users': inactive_users,
+        'locked_users': locked_users,
+        'role_stats': role_stats,
+        'recent_users': recent_users,
+        'recent_activities': recent_activities,
+    }
+    
+    return render(request, 'Cripto1/user_management/dashboard.html', context)
+
+@login_required
+@user_management_required
+def user_list(request):
+    """Lista degli utenti con filtri e paginazione"""
+    search = request.GET.get('search', '')
+    status = request.GET.get('status', '')
+    role_filter = request.GET.get('role', '')
+    
+    # Query base
+    users = UserProfile.objects.select_related('user').all()
+    
+    # Filtri
+    if search:
+        users = users.filter(
+            Q(user__username__icontains=search) |
+            Q(user__email__icontains=search) |
+            Q(user__first_name__icontains=search) |
+            Q(user__last_name__icontains=search) |
+            Q(department__icontains=search) |
+            Q(position__icontains=search)
+        )
+    
+    if status == 'active':
+        users = users.filter(is_active=True, is_locked=False)
+    elif status == 'inactive':
+        users = users.filter(is_active=False)
+    elif status == 'locked':
+        users = users.filter(is_locked=True)
+    
+    if role_filter:
+        users = users.filter(user__user_roles__role__name=role_filter)
+    
+    # Paginazione
+    paginator = Paginator(users, 12)
+    page = request.GET.get('page')
+    try:
+        page_obj = paginator.page(page)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+    
+    # Ruoli disponibili per il filtro
+    roles = Role.objects.all()
+    
+    context = {
+        'page_obj': page_obj,
+        'search': search,
+        'status': status,
+        'role_filter': role_filter,
+        'roles': roles,
+    }
+    
+    return render(request, 'Cripto1/user_management/user_list.html', context)
+
+@login_required
+@user_management_required
+def user_detail(request, user_id):
+    """Dettaglio utente con gestione ruoli"""
+    user = get_object_or_404(User, id=user_id)
+    user_profile = get_object_or_404(UserProfile, user=user)
+    
+    # Ruoli dell'utente
+    user_roles = UserRole.objects.filter(user=user).select_related('role', 'assigned_by')
+    
+    # Ruoli disponibili per l'assegnazione
+    assigned_role_ids = user_roles.values_list('role_id', flat=True)
+    available_roles = Role.objects.filter(is_active=True).exclude(id__in=assigned_role_ids)
+    
+    # Attività recenti dell'utente
+    recent_activities = AuditLog.objects.filter(
+        Q(user=user) | Q(description__icontains=user.username)
+    ).order_by('-timestamp')[:10]
+    
+    context = {
+        'user_profile': user_profile,
+        'user_roles': user_roles,
+        'available_roles': available_roles,
+        'recent_activities': recent_activities,
+    }
+    
+    return render(request, 'Cripto1/user_management/user_detail.html', context)
+
+@login_required
+@user_management_required
+def create_user(request):
+    """Creazione nuovo utente"""
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        confirm_password = request.POST.get('confirm_password')
+        first_name = request.POST.get('first_name', '')
+        last_name = request.POST.get('last_name', '')
+        department = request.POST.get('department', '')
+        position = request.POST.get('position', '')
+        phone = request.POST.get('phone', '')
+        default_role = request.POST.get('default_role', '')
+        
+        # Validazione
+        if password != confirm_password:
+            messages.error(request, 'Le password non corrispondono')
+            return render(request, 'Cripto1/user_management/create_user.html', {'roles': Role.objects.all()})
+        
+        if User.objects.filter(username=username).exists():
+            messages.error(request, 'Username già esistente')
+            return render(request, 'Cripto1/user_management/create_user.html', {'roles': Role.objects.all()})
+        
+        try:
+            with transaction.atomic():
+                # Crea l'utente
+                user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    password=password,
+                    first_name=first_name,
+                    last_name=last_name
+                )
+                
+                # Crea il profilo
+                user_profile = UserProfile.objects.create(
+                    user=user,
+                    department=department,
+                    position=position,
+                    phone=phone
+                )
+                
+                # Assegna ruolo di default se specificato
+                if default_role:
+                    try:
+                        role = Role.objects.get(name=default_role)
+                        UserRole.objects.create(
+                            user=user,
+                            role=role,
+                            assigned_by=request.user,
+                            notes='Ruolo assegnato alla creazione'
+                        )
+                    except Role.DoesNotExist:
+                        pass
+                
+                # Log dell'azione
+                AuditLog.log_action(
+                    action_type='USER_CREATED',
+                    description=f'Utente {username} creato da {request.user.username}',
+                    severity='INFO',
+                    user=request.user,
+                    ip_address=request.META.get('REMOTE_ADDR'),
+                    success=True
+                )
+                
+                messages.success(request, f'Utente {username} creato con successo')
+                return redirect('Cripto1:user_detail', user_id=user.id)
+                
+        except Exception as e:
+            messages.error(request, f'Errore durante la creazione: {str(e)}')
+    
+    context = {
+        'roles': Role.objects.filter(is_active=True)
+    }
+    return render(request, 'Cripto1/user_management/create_user.html', context)
+
+@login_required
+@user_management_required
+def edit_user(request, user_id):
+    """Modifica utente"""
+    user = get_object_or_404(User, id=user_id)
+    user_profile = get_object_or_404(UserProfile, user=user)
+    
+    if request.method == 'POST':
+        form = UserProfileEditForm(request.POST, request.FILES, instance=user_profile)
+        if form.is_valid():
+            form.save()
+            
+            # Aggiorna anche i campi dell'utente
+            user.first_name = request.POST.get('first_name', '')
+            user.last_name = request.POST.get('last_name', '')
+            user.email = request.POST.get('email', '')
+            user.save()
+            
+            # Log dell'azione
+            AuditLog.log_action(
+                action_type='USER_UPDATED',
+                description=f'Utente {user.username} modificato da {request.user.username}',
+                severity='INFO',
+                user=request.user,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                success=True
+            )
+            
+            messages.success(request, 'Utente aggiornato con successo')
+            return redirect('Cripto1:user_detail', user_id=user.id)
+    else:
+        form = UserProfileEditForm(instance=user_profile)
+    
+    context = {
+        'user_profile': user_profile,
+        'form': form
+    }
+    return render(request, 'Cripto1/user_management/edit_user.html', context)
+
+@login_required
+@user_management_required
+def toggle_user_status(request, user_id):
+    """Attiva/disattiva utente"""
+    if request.method == 'POST':
+        user = get_object_or_404(User, id=user_id)
+        user_profile = get_object_or_404(UserProfile, user=user)
+        
+        # Non permettere di disattivare se stessi
+        if user == request.user:
+            messages.error(request, 'Non puoi disattivare il tuo account')
+            return redirect('Cripto1:user_detail', user_id=user.id)
+        
+        user_profile.is_active = not user_profile.is_active
+        user_profile.save()
+        
+        action = 'attivato' if user_profile.is_active else 'disattivato'
+        
+        # Log dell'azione
+        AuditLog.log_action(
+            action_type='USER_STATUS_CHANGED',
+            description=f'Utente {user.username} {action} da {request.user.username}',
+            severity='WARNING',
+            user=request.user,
+            ip_address=request.META.get('REMOTE_ADDR'),
+            success=True
+        )
+        
+        messages.success(request, f'Utente {user.username} {action} con successo')
+    
+    return redirect('Cripto1:user_detail', user_id=user_id)
+
+@login_required
+@user_management_required
+def assign_role(request, user_id):
+    """Assegna ruolo a utente"""
+    if request.method == 'POST':
+        user = get_object_or_404(User, id=user_id)
+        role_id = request.POST.get('role_id')
+        expires_at = request.POST.get('expires_at')
+        notes = request.POST.get('notes', '')
+        
+        if role_id:
+            try:
+                role = Role.objects.get(id=role_id)
+                
+                # Controlla se il ruolo è già assegnato
+                if UserRole.objects.filter(user=user, role=role, is_active=True).exists():
+                    messages.error(request, 'Ruolo già assegnato a questo utente')
+                else:
+                    # Crea l'assegnazione
+                    user_role = UserRole.objects.create(
+                        user=user,
+                        role=role,
+                        assigned_by=request.user,
+                        expires_at=expires_at if expires_at else None,
+                        notes=notes
+                    )
+                    
+                    # Log dell'azione
+                    AuditLog.log_action(
+                        action_type='ROLE_ASSIGNED',
+                        description=f'Ruolo {role.name} assegnato a {user.username} da {request.user.username}',
+                        severity='INFO',
+                        user=request.user,
+                        ip_address=request.META.get('REMOTE_ADDR'),
+                        success=True
+                    )
+                    
+                    messages.success(request, f'Ruolo {role.name} assegnato con successo')
+                    
+            except Role.DoesNotExist:
+                messages.error(request, 'Ruolo non trovato')
+    
+    return redirect('Cripto1:user_detail', user_id=user_id)
+
+@login_required
+@user_management_required
+def remove_role(request, user_id, role_id):
+    """Rimuove ruolo da utente"""
+    if request.method == 'POST':
+        user = get_object_or_404(User, id=user_id)
+        role = get_object_or_404(Role, id=role_id)
+        
+        try:
+            user_role = UserRole.objects.get(user=user, role=role, is_active=True)
+            user_role.is_active = False
+            user_role.save()
+            
+            # Log dell'azione
+            AuditLog.log_action(
+                action_type='ROLE_REMOVED',
+                description=f'Ruolo {role.name} rimosso da {user.username} da {request.user.username}',
+                severity='WARNING',
+                user=request.user,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                success=True
+            )
+            
+            messages.success(request, f'Ruolo {role.name} rimosso con successo')
+            
+        except UserRole.DoesNotExist:
+            messages.error(request, 'Assegnazione ruolo non trovata')
+    
+    return redirect('Cripto1:user_detail', user_id=user_id)
+
+@login_required
+@user_management_required
+def role_list(request):
+    """Lista dei ruoli"""
+    roles = Role.objects.all().prefetch_related('permissions', 'user_assignments')
+    
+    context = {
+        'roles': roles
+    }
+    return render(request, 'Cripto1/user_management/role_list.html', context)
+
+@login_required
+@user_management_required
+def role_detail(request, role_id):
+    """Dettaglio ruolo"""
+    role = get_object_or_404(Role, id=role_id)
+    
+    context = {
+        'role': role
+    }
+    return render(request, 'Cripto1/user_management/role_detail.html', context)
+
+@login_required
+@user_management_required
+def create_role(request):
+    """Creazione nuovo ruolo"""
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        code = request.POST.get('code', '')
+        description = request.POST.get('description', '')
+        permissions = request.POST.getlist('permissions')
+        is_active = request.POST.get('is_active') == 'on'
+        is_system_role = request.POST.get('is_system_role') == 'on'
+        notes = request.POST.get('notes', '')
+        
+        if Role.objects.filter(name=name).exists():
+            messages.error(request, 'Nome ruolo già esistente')
+            return render(request, 'Cripto1/user_management/create_role.html', {'permissions': Permission.objects.all()})
+        
+        try:
+            with transaction.atomic():
+                # Crea il ruolo
+                role = Role.objects.create(
+                    name=name,
+                    code=code,
+                    description=description,
+                    is_active=is_active,
+                    is_system_role=is_system_role,
+                    notes=notes
+                )
+                
+                # Assegna i permessi
+                if permissions:
+                    role.permissions.set(permissions)
+                
+                # Log dell'azione
+                AuditLog.log_action(
+                    action_type='ROLE_CREATED',
+                    description=f'Ruolo {name} creato da {request.user.username}',
+                    severity='INFO',
+                    user=request.user,
+                    ip_address=request.META.get('REMOTE_ADDR'),
+                    success=True
+                )
+                
+                messages.success(request, f'Ruolo {name} creato con successo')
+                return redirect('Cripto1:role_detail', role_id=role.id)
+                
+        except Exception as e:
+            messages.error(request, f'Errore durante la creazione: {str(e)}')
+    
+    context = {
+        'permissions': Permission.objects.all()
+    }
+    return render(request, 'Cripto1/user_management/create_role.html', context)

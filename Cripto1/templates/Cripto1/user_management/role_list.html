@@ -1,0 +1,221 @@
+{% extends 'Cripto1/base.html' %}
+{% load static %}
+
+{% block title %}Gestione Ruoli{% endblock %}
+
+{% block extra_css %}
+<style>
+    .role-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease;
+        border-left: 4px solid #007bff;
+    }
+    
+    .role-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    
+    .role-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    
+    .role-name {
+        font-size: 1.3rem;
+        font-weight: bold;
+        color: #007bff;
+    }
+    
+    .role-status {
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: bold;
+    }
+    
+    .status-active {
+        background: #28a745;
+        color: white;
+    }
+    
+    .status-inactive {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .role-description {
+        color: #666;
+        margin-bottom: 15px;
+    }
+    
+    .role-stats {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 15px;
+    }
+    
+    .stat-item {
+        text-align: center;
+    }
+    
+    .stat-number {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #007bff;
+    }
+    
+    .stat-label {
+        font-size: 0.8rem;
+        color: #666;
+    }
+    
+    .permission-preview {
+        margin-top: 15px;
+    }
+    
+    .permission-item {
+        display: inline-block;
+        background: #e9ecef;
+        color: #495057;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+    
+    .system-role-badge {
+        background: #6f42c1;
+        color: white;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 0.7rem;
+        margin-left: 10px;
+    }
+    
+    .action-buttons {
+        margin-top: 15px;
+    }
+    
+    .btn-group-vertical {
+        width: 100%;
+    }
+    
+    .btn-group-vertical .btn {
+        margin-bottom: 5px;
+        border-radius: 5px !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="fas fa-user-tag"></i> Gestione Ruoli</h1>
+                <a href="{% url 'Cripto1:create_role' %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Nuovo Ruolo
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        {% for role in roles %}
+        <div class="col-md-6 col-lg-4">
+            <div class="role-card">
+                <div class="role-header">
+                    <div class="role-name">
+                        {{ role.name }}
+                        {% if role.is_system_role %}
+                            <span class="system-role-badge">Sistema</span>
+                        {% endif %}
+                    </div>
+                    <div class="role-status {% if role.is_active %}status-active{% else %}status-inactive{% endif %}">
+                        {% if role.is_active %}Attivo{% else %}Inattivo{% endif %}
+                    </div>
+                </div>
+                
+                <div class="role-description">
+                    {{ role.description|default:"Nessuna descrizione" }}
+                </div>
+                
+                <div class="role-stats">
+                    <div class="stat-item">
+                        <div class="stat-number">{{ role.permissions.count }}</div>
+                        <div class="stat-label">Permessi</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">{{ role.user_assignments.count }}</div>
+                        <div class="stat-label">Utenti</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">{{ role.user_assignments.filter.is_active.count }}</div>
+                        <div class="stat-label">Attivi</div>
+                    </div>
+                </div>
+                
+                <!-- Anteprima permessi -->
+                <div class="permission-preview">
+                    <strong>Permessi principali:</strong><br>
+                    {% for permission in role.permissions.all|slice:":5" %}
+                        <span class="permission-item">{{ permission.name }}</span>
+                    {% empty %}
+                        <span class="text-muted">Nessun permesso</span>
+                    {% endfor %}
+                    {% if role.permissions.count > 5 %}
+                        <span class="text-muted">... e altri {{ role.permissions.count|add:"-5" }}</span>
+                    {% endif %}
+                </div>
+                
+                <!-- Azioni -->
+                <div class="action-buttons">
+                    <div class="btn-group-vertical">
+                        <a href="{% url 'Cripto1:role_detail' role.id %}" class="btn btn-outline-primary">
+                            <i class="fas fa-eye"></i> Dettagli
+                        </a>
+                        {% if not role.is_system_role %}
+                            <button class="btn btn-outline-warning" onclick="toggleRoleStatus({{ role.id }}, '{{ role.name }}')">
+                                <i class="fas fa-toggle-on"></i> 
+                                {% if role.is_active %}Disattiva{% else %}Attiva{% endif %}
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="text-center py-5">
+                <i class="fas fa-user-tag fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">Nessun ruolo trovato</h4>
+                <p class="text-muted">Non ci sono ancora ruoli nel sistema</p>
+                <a href="{% url 'Cripto1:create_role' %}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Crea Primo Ruolo
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleRoleStatus(roleId, roleName) {
+    if (confirm('Sei sicuro di voler cambiare lo stato del ruolo "' + roleName + '"?')) {
+        // Qui potresti implementare una chiamata AJAX per cambiare lo stato
+        // Per ora ricarica la pagina
+        location.reload();
+    }
+}
+</script>
+{% endblock %} 

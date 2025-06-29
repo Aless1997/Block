@@ -57,6 +57,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'Cripto1.middleware.AuditLogMiddleware',  # Middleware per audit log
+    'Cripto1.middleware.SecurityMiddleware',  # Middleware per sicurezza e gestione login
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -139,3 +140,6 @@ FERNET_KEY = b'JelaY1G0OlEEPMOnb-q9jVuxr88GAUiyzWD4u4fgEUs='
 FIELD_ENCRYPTION_KEY = b'JelaY1G0OlEEPMOnb-q9jVuxr88GAUiyzWD4u4fgEUs='
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'Cripto', 'Cripto1', 'media')
+
+# Error pages
+HANDLER403 = 'Cripto1.views.permission_denied'
