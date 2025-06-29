@@ -234,7 +234,7 @@ class SmartContract(models.Model):
 
 class BlockchainState(models.Model):
     current_supply = models.FloatField(default=0.0)
-    max_supply = models.FloatField(default=210000000.0)
+    max_supply = models.FloatField(default=21000000.0)
     current_reward = models.FloatField(default=0.05)
     halving_count = models.IntegerField(default=0)
     last_updated = models.DateTimeField(auto_now=True)
@@ -246,3 +246,106 @@ class BlockchainState(models.Model):
 
     def __str__(self):
         return f"Blockchain State - Supply: {self.current_supply}"
+
+class AuditLog(models.Model):
+    """Sistema di audit log per tracciare tutte le azioni degli utenti"""
+    
+    ACTION_TYPES = [
+        ('LOGIN', 'Login'),
+        ('LOGOUT', 'Logout'),
+        ('REGISTER', 'Registrazione'),
+        ('CREATE_TRANSACTION', 'Creazione Transazione'),
+        ('VIEW_TRANSACTION', 'Visualizzazione Transazione'),
+        ('DOWNLOAD_FILE', 'Download File'),
+        ('DECRYPT_MESSAGE', 'Decifratura Messaggio'),
+        ('MINE_BLOCK', 'Mining Blocco'),
+        ('EDIT_PROFILE', 'Modifica Profilo'),
+        ('RESET_PRIVATE_KEY', 'Reset Chiave Privata'),
+        ('ADMIN_ACTION', 'Azione Amministrativa'),
+        ('SECURITY_EVENT', 'Evento di Sicurezza'),
+        ('EXPORT_DATA', 'Export Dati'),
+        ('VERIFY_BLOCKCHAIN', 'Verifica Blockchain'),
+        ('USER_MANAGEMENT', 'Gestione Utenti'),
+        ('SYSTEM_EVENT', 'Evento di Sistema'),
+    ]
+
+    SEVERITY_LEVELS = [
+        ('LOW', 'Basso'),
+        ('MEDIUM', 'Medio'),
+        ('HIGH', 'Alto'),
+        ('CRITICAL', 'Critico'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_logs')
+    action_type = models.CharField(max_length=50, choices=ACTION_TYPES)
+    severity = models.CharField(max_length=20, choices=SEVERITY_LEVELS, default='MEDIUM')
+    description = models.TextField()
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    session_id = models.CharField(max_length=255, blank=True)
+    related_object_type = models.CharField(max_length=100, blank=True)  # es: 'Transaction', 'Block', 'UserProfile'
+    related_object_id = models.IntegerField(null=True, blank=True)
+    additional_data = models.JSONField(default=dict, blank=True)  # Dati aggiuntivi in formato JSON
+    timestamp = models.DateTimeField(auto_now_add=True)
+    success = models.BooleanField(default=True)  # Se l'azione è stata completata con successo
+    error_message = models.TextField(blank=True)  # Messaggio di errore se success=False
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = "Audit Log"
+        verbose_name_plural = "Audit Logs"
+        indexes = [
+            models.Index(fields=['user', 'action_type', 'timestamp']),
+            models.Index(fields=['action_type', 'timestamp']),
+            models.Index(fields=['severity', 'timestamp']),
+            models.Index(fields=['ip_address', 'timestamp']),
+        ]
+
+    def __str__(self):
+        return f"{self.action_type} - {self.user.username if self.user else 'Anonymous'} - {self.timestamp}"
+
+    @classmethod
+    def log_action(cls, user=None, action_type=None, description="", severity='MEDIUM', 
+                   ip_address=None, user_agent="", session_id="", related_object_type="", 
+                   related_object_id=None, additional_data=None, success=True, error_message=""):
+        """
+        Metodo di classe per creare facilmente un audit log
+        """
+        try:
+            action_type = action_type or 'SYSTEM_EVENT'
+            return cls.objects.create(
+                user=user,
+                action_type=action_type,
+                severity=severity,
+                description=description,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                session_id=session_id,
+                related_object_type=related_object_type,
+                related_object_id=related_object_id,
+                additional_data=additional_data or {},
+                success=success,
+                error_message=error_message
+            )
+        except Exception as e:
+            import traceback
+            print(f"ERROR: Failed to create audit log: {e}")
+            traceback.print_exc()
+            return None
+
+    def get_related_object(self):
+        """Restituisce l'oggetto correlato se esiste"""
+        if not self.related_object_type or not self.related_object_id:
+            return None
+        
+        try:
+            if self.related_object_type == 'Transaction':
+                return Transaction.objects.get(id=self.related_object_id)
+            elif self.related_object_type == 'Block':
+                return Block.objects.get(id=self.related_object_id)
+            elif self.related_object_type == 'UserProfile':
+                return UserProfile.objects.get(id=self.related_object_id)
+            elif self.related_object_type == 'User':
+                return User.objects.get(id=self.related_object_id)
+        except:
+            return None

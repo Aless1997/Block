@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, authenticate, logout
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
-from .models import Block, Transaction, UserProfile, SmartContract, BlockchainState
+from .models import Block, Transaction, UserProfile, SmartContract, BlockchainState, AuditLog
 from django.db import transaction, models
 import hashlib
 import json
@@ -18,7 +18,7 @@ from django.utils import timezone
 import random
 from .forms import UserProfileEditForm
 from django.contrib.admin.views.decorators import staff_member_required
-from django.db.models import Sum
+from django.db.models import Sum, Q
 import csv
 import os
 from cryptography.hazmat.primitives.asymmetric.padding import PSS, MGF1
@@ -32,6 +32,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 import base64
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.urls import reverse
+from datetime import datetime, timedelta
 
 cipher_suite = Fernet(settings.FERNET_KEY)
 
@@ -81,7 +82,7 @@ def all_transactions_view(request):
     ).order_by('-timestamp')
 
     for tx in transactions_list:
-        tx.timestamp_datetime = datetime.datetime.fromtimestamp(tx.timestamp)
+        tx.timestamp_datetime = datetime.fromtimestamp(tx.timestamp, tz=timezone.get_current_timezone())
         # Determine direction for display
         if tx.sender == request.user:
             tx.direction = "Inviata"
@@ -112,7 +113,7 @@ def unviewed_transactions_list(request):
     ).order_by('-timestamp')
 
     for tx in transactions_list:
-        tx.timestamp_datetime = datetime.datetime.fromtimestamp(tx.timestamp)
+        tx.timestamp_datetime = datetime.fromtimestamp(tx.timestamp, tz=timezone.get_current_timezone())
         tx.direction = "Ricevuta" # All these transactions are received
     
     paginator = Paginator(transactions_list, 10) # Show 10 transactions per page
@@ -145,7 +146,7 @@ def dashboard(request):
     # Recupera i blocchi più recenti
     latest_blocks = list(Block.objects.all().order_by('-index')[:10])
     for block in latest_blocks:
-        block.timestamp_datetime = datetime.datetime.fromtimestamp(block.timestamp)
+        block.timestamp_datetime = datetime.fromtimestamp(block.timestamp, tz=timezone.get_current_timezone())
 
     # Recupera le transazioni recenti
     user_transactions = []
@@ -154,7 +155,7 @@ def dashboard(request):
         models.Q(receiver=request.user)
     ).order_by('-timestamp')[:10]
     for tx in transactions_queryset:
-        tx.timestamp_datetime = datetime.datetime.fromtimestamp(tx.timestamp)
+        tx.timestamp_datetime = datetime.fromtimestamp(tx.timestamp, tz=timezone.get_current_timezone())
         user_transactions.append(tx)
 
     # Conta le transazioni in sospeso
@@ -560,7 +561,7 @@ def personal_profile(request, reset_private_key_message=None):
     
     processed_recent_transactions = []
     for tx in recent_transactions:
-        tx.timestamp_datetime = datetime.datetime.fromtimestamp(tx.timestamp)
+        tx.timestamp_datetime = datetime.fromtimestamp(tx.timestamp, tz=timezone.get_current_timezone())
         if tx.receiver == request.user:
             tx.direction = 'Ricevuta'
         elif tx.sender == request.user:
@@ -586,7 +587,7 @@ def transaction_details(request, transaction_id):
         return redirect('Cripto1:dashboard')
     
     # Convert timestamp to datetime
-    tx.timestamp_datetime = datetime.datetime.fromtimestamp(tx.timestamp)
+    tx.timestamp_datetime = datetime.fromtimestamp(tx.timestamp, tz=timezone.get_current_timezone())
 
     # Mark as viewed if the current user is the receiver and it's not already viewed
     if request.user == tx.receiver and not tx.is_viewed:
@@ -927,6 +928,300 @@ def regenerate_user_private_key(request, user_id):
         except Exception as e:
             messages.error(request, f'Errore durante la rigenerazione della chiave: {str(e)}')
     return redirect('Cripto1:admin_user_detail', user_id=user_id)
+
+# ==================== AUDIT LOG VIEWS ====================
+
+@staff_member_required
+def audit_logs_view(request):
+    """Vista principale per visualizzare gli audit log"""
+    
+    # Parametri di filtro
+    action_type = request.GET.get('action_type', '')
+    severity = request.GET.get('severity', '')
+    user_id = request.GET.get('user_id', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    success_only = request.GET.get('success_only', '')
+    
+    # Query base
+    queryset = AuditLog.objects.select_related('user').all()
+    
+    # Applica filtri
+    if action_type:
+        queryset = queryset.filter(action_type=action_type)
+    if severity:
+        queryset = queryset.filter(severity=severity)
+    if user_id:
+        queryset = queryset.filter(user_id=user_id)
+    if date_from:
+        try:
+            date_from_obj = timezone.strptime(date_from, '%Y-%m-%d')
+            queryset = queryset.filter(timestamp__date__gte=date_from_obj.date())
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            date_to_obj = timezone.strptime(date_to, '%Y-%m-%d')
+            queryset = queryset.filter(timestamp__date__lte=date_to_obj.date())
+        except ValueError:
+            pass
+    if success_only == 'true':
+        queryset = queryset.filter(success=True)
+    
+    # Statistiche
+    total_logs = queryset.count()
+    success_count = queryset.filter(success=True).count()
+    error_count = total_logs - success_count
+    
+    # Statistiche per severità
+    severity_stats = queryset.values('severity').annotate(count=models.Count('id'))
+    
+    # Statistiche per tipo di azione
+    action_stats = queryset.values('action_type').annotate(count=models.Count('id')).order_by('-count')[:10]
+    
+    # Paginazione
+    paginator = Paginator(queryset, 50)  # 50 log per pagina
+    page = request.GET.get('page')
+    try:
+        logs = paginator.page(page)
+    except PageNotAnInteger:
+        logs = paginator.page(1)
+    except EmptyPage:
+        logs = paginator.page(paginator.num_pages)
+    
+    # Lista utenti per il filtro
+    users = User.objects.filter(audit_logs__isnull=False).distinct()
+    
+    context = {
+        'logs': logs,
+        'total_logs': total_logs,
+        'success_count': success_count,
+        'error_count': error_count,
+        'severity_stats': severity_stats,
+        'action_stats': action_stats,
+        'users': users,
+        'action_types': AuditLog.ACTION_TYPES,
+        'severity_levels': AuditLog.SEVERITY_LEVELS,
+        'filters': {
+            'action_type': action_type,
+            'severity': severity,
+            'user_id': user_id,
+            'date_from': date_from,
+            'date_to': date_to,
+            'success_only': success_only,
+        }
+    }
+    
+    return render(request, 'Cripto1/audit_logs.html', context)
+
+@staff_member_required
+def audit_log_detail(request, log_id):
+    """Vista dettagliata di un singolo audit log"""
+    log = get_object_or_404(AuditLog, id=log_id)
+    
+    # Ottieni l'oggetto correlato se esiste
+    related_object = log.get_related_object()
+    
+    context = {
+        'log': log,
+        'related_object': related_object,
+    }
+    
+    return render(request, 'Cripto1/audit_log_detail.html', context)
+
+@staff_member_required
+def export_audit_logs(request):
+    """Export degli audit log in CSV"""
+    
+    # Parametri di filtro (stessi della vista principale)
+    action_type = request.GET.get('action_type', '')
+    severity = request.GET.get('severity', '')
+    user_id = request.GET.get('user_id', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    success_only = request.GET.get('success_only', '')
+    
+    # Query base
+    queryset = AuditLog.objects.select_related('user').all()
+    
+    # Applica filtri
+    if action_type:
+        queryset = queryset.filter(action_type=action_type)
+    if severity:
+        queryset = queryset.filter(severity=severity)
+    if user_id:
+        queryset = queryset.filter(user_id=user_id)
+    if date_from:
+        try:
+            date_from_obj = timezone.strptime(date_from, '%Y-%m-%d')
+            queryset = queryset.filter(timestamp__date__gte=date_from_obj.date())
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            date_to_obj = timezone.strptime(date_to, '%Y-%m-%d')
+            queryset = queryset.filter(timestamp__date__lte=date_to_obj.date())
+        except ValueError:
+            pass
+    if success_only == 'true':
+        queryset = queryset.filter(success=True)
+    
+    # Crea il file CSV
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="audit_logs_{timezone.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+    
+    # Scrivi BOM per UTF-8
+    response.write('\ufeff')
+    
+    writer = csv.writer(response)
+    
+    # Intestazioni
+    headers = [
+        'ID', 'Timestamp', 'Utente', 'Tipo Azione', 'Severità', 'Descrizione',
+        'IP Address', 'User Agent', 'Session ID', 'Oggetto Correlato',
+        'Tipo Oggetto', 'ID Oggetto', 'Successo', 'Messaggio Errore',
+        'Dati Aggiuntivi'
+    ]
+    writer.writerow(headers)
+    
+    # Dati
+    for log in queryset:
+        row = [
+            log.id,
+            log.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            log.user.username if log.user else 'Anonymous',
+            log.get_action_type_display(),
+            log.get_severity_display(),
+            log.description,
+            log.ip_address or '',
+            log.user_agent or '',
+            log.session_id or '',
+            log.related_object_type or '',
+            log.related_object_id or '',
+            'Sì' if log.success else 'No',
+            log.error_message or '',
+            json.dumps(log.additional_data, ensure_ascii=False) if log.additional_data else ''
+        ]
+        writer.writerow(row)
+    
+    return response
+
+@staff_member_required
+def audit_logs_analytics(request):
+    """Dashboard analitica per gli audit log"""
+    
+    # Periodo di analisi (ultimi 30 giorni di default)
+    days = int(request.GET.get('days', 30))
+    end_date = timezone.now()
+    start_date = end_date - timedelta(days=days)
+    
+    # Log nel periodo
+    logs_in_period = AuditLog.objects.filter(
+        timestamp__range=(start_date, end_date)
+    )
+    
+    # Statistiche generali
+    total_actions = logs_in_period.count()
+    unique_users = logs_in_period.values('user').distinct().count()
+    success_count = logs_in_period.filter(success=True).count()
+    success_rate = (success_count / total_actions * 100) if total_actions > 0 else 0
+    actions_per_day = (total_actions / days) if days > 0 else 0
+    
+    # Azioni per giorno
+    daily_actions = logs_in_period.extra(
+        select={'day': 'date(timestamp)'}
+    ).values('day').annotate(
+        count=models.Count('id'),
+        success_count=models.Count('id', filter=models.Q(success=True)),
+        error_count=models.Count('id', filter=models.Q(success=False))
+    ).order_by('day')
+    
+    # Top azioni
+    top_actions = logs_in_period.values('action_type').annotate(
+        count=models.Count('id')
+    ).order_by('-count')[:10]
+    for action in top_actions:
+        action['percent'] = (action['count'] / total_actions * 100) if total_actions > 0 else 0
+    
+    # Top utenti
+    top_users = logs_in_period.values('user__username').annotate(
+        count=models.Count('id')
+    ).order_by('-count')[:10]
+    for user in top_users:
+        user['percent'] = (user['count'] / total_actions * 100) if total_actions > 0 else 0
+    
+    # Severità distribution
+    severity_distribution = logs_in_period.values('severity').annotate(
+        count=models.Count('id')
+    ).order_by('severity')
+    
+    # IP addresses più attivi
+    top_ips = logs_in_period.values('ip_address').annotate(
+        count=models.Count('id')
+    ).filter(ip_address__isnull=False).order_by('-count')[:10]
+    for ip in top_ips:
+        ip['percent'] = (ip['count'] / total_actions * 100) if total_actions > 0 else 0
+    
+    context = {
+        'days': days,
+        'start_date': start_date,
+        'end_date': end_date,
+        'total_actions': total_actions,
+        'unique_users': unique_users,
+        'success_rate': round(success_rate, 2),
+        'actions_per_day': round(actions_per_day, 1),
+        'daily_actions': list(daily_actions),
+        'top_actions': list(top_actions),
+        'top_users': list(top_users),
+        'severity_distribution': list(severity_distribution),
+        'top_ips': list(top_ips),
+    }
+    
+    return render(request, 'Cripto1/audit_logs_analytics.html', context)
+
+@staff_member_required
+def security_alerts(request):
+    """Vista per gli alert di sicurezza"""
+    
+    # Eventi critici degli ultimi 7 giorni
+    critical_events = AuditLog.objects.filter(
+        severity='CRITICAL',
+        timestamp__gte=timezone.now() - timedelta(days=7)
+    ).order_by('-timestamp')
+    
+    # Tentativi di login falliti
+    failed_logins = AuditLog.objects.filter(
+        action_type='LOGIN',
+        success=False,
+        timestamp__gte=timezone.now() - timedelta(days=7)
+    ).order_by('-timestamp')
+    
+    # Azioni amministrative
+    admin_actions = AuditLog.objects.filter(
+        action_type='ADMIN_ACTION',
+        timestamp__gte=timezone.now() - timedelta(days=7)
+    ).order_by('-timestamp')
+    
+    # IP sospetti (troppi tentativi falliti)
+    suspicious_ips = AuditLog.objects.filter(
+        action_type='LOGIN',
+        success=False,
+        timestamp__gte=timezone.now() - timedelta(hours=24)
+    ).values('ip_address').annotate(
+        failed_attempts=models.Count('id')
+    ).filter(
+        failed_attempts__gte=5,
+        ip_address__isnull=False
+    ).order_by('-failed_attempts')
+    
+    context = {
+        'critical_events': critical_events,
+        'failed_logins': failed_logins,
+        'admin_actions': admin_actions,
+        'suspicious_ips': suspicious_ips,
+    }
+    
+    return render(request, 'Cripto1/security_alerts.html', context)
 
 def page_not_found(request, exception):
     return render(request, 'Cripto1/404.html', {},

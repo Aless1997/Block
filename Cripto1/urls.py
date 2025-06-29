@@ -36,6 +36,13 @@ urlpatterns = [
     path('admdashboard/user/<int:user_id>/', views.admin_user_detail, name='admin_user_detail'),
     path('admdashboard/user/<int:user_id>/regenerate-key/', views.regenerate_user_private_key, name='regenerate_user_private_key'),
 
+    # Audit Log URLs
+    path('audit-logs/', views.audit_logs_view, name='audit_logs'),
+    path('audit-logs/<int:log_id>/', views.audit_log_detail, name='audit_log_detail'),
+    path('audit-logs/export/', views.export_audit_logs, name='export_audit_logs'),
+    path('audit-logs/analytics/', views.audit_logs_analytics, name='audit_logs_analytics'),
+    path('security-alerts/', views.security_alerts, name='security_alerts'),
+
     # Blockchain mining
     path('mine-block/', views.mine_block, name='mine_block'),
 
