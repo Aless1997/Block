@@ -3,368 +3,249 @@
 
 {% block title %}Dettaglio Ruolo - {{ role.name }}{% endblock %}
 
-{% block extra_css %}
-<style>
-    .role-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 30px;
-        border-radius: 15px;
-        margin-bottom: 30px;
-    }
-    
-    .role-icon {
-        width: 80px;
-        height: 80px;
-        border-radius: 50%;
-        background: rgba(255,255,255,0.2);
-        color: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2rem;
-        margin-right: 30px;
-    }
-    
-    .info-card {
-        background: white;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-    
-    .info-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 10px 0;
-        border-bottom: 1px solid #eee;
-    }
-    
-    .info-row:last-child {
-        border-bottom: none;
-    }
-    
-    .info-label {
-        font-weight: bold;
-        color: #666;
-    }
-    
-    .info-value {
-        color: #333;
-    }
-    
-    .permission-category {
-        background: white;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 15px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        border-left: 4px solid #007bff;
-    }
-    
-    .permission-category h5 {
-        color: #007bff;
-        margin-bottom: 15px;
-        border-bottom: 1px solid #eee;
-        padding-bottom: 10px;
-    }
-    
-    .permission-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 0;
-        border-bottom: 1px solid #f8f9fa;
-    }
-    
-    .permission-item:last-child {
-        border-bottom: none;
-    }
-    
-    .permission-name {
-        font-weight: bold;
-        color: #495057;
-    }
-    
-    .permission-description {
-        font-size: 0.9rem;
-        color: #6c757d;
-        margin-top: 5px;
-    }
-    
-    .user-assignment {
-        background: white;
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        border-left: 4px solid #28a745;
-    }
-    
-    .user-assignment-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 10px;
-    }
-    
-    .user-name {
-        font-weight: bold;
-        color: #495057;
-    }
-    
-    .assignment-status {
-        padding: 3px 10px;
-        border-radius: 15px;
-        font-size: 0.8rem;
-        font-weight: bold;
-    }
-    
-    .status-active {
-        background: #28a745;
-        color: white;
-    }
-    
-    .status-expired {
-        background: #dc3545;
-        color: white;
-    }
-    
-    .assignment-details {
-        font-size: 0.9rem;
-        color: #666;
-    }
-    
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 15px;
-        margin-bottom: 20px;
-    }
-    
-    .stat-card {
-        background: white;
-        border-radius: 10px;
-        padding: 20px;
-        text-align: center;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-    
-    .stat-number {
-        font-size: 2rem;
-        font-weight: bold;
-        color: #007bff;
-        margin-bottom: 5px;
-    }
-    
-    .stat-label {
-        font-size: 0.9rem;
-        color: #666;
-    }
-    
-    .system-role-badge {
-        background: #6f42c1;
-        color: white;
-        padding: 5px 15px;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        margin-left: 15px;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid mt-4">
     <!-- Header ruolo -->
-    <div class="role-header">
-        <div class="d-flex align-items-center">
-            <div class="role-icon">
-                <i class="fas fa-user-tag"></i>
-            </div>
-            <div class="flex-grow-1">
-                <h1 class="mb-2">{{ role.name }}</h1>
-                <p class="mb-1">{{ role.description|default:"Nessuna descrizione" }}</p>
-                <p class="mb-0">
+    <div class="card border-primary mb-4">
+        <div class="card-header bg-primary text-white">
+            <div class="d-flex align-items-center">
+                <div class="me-3">
+                    <i class="fas fa-user-tag fa-2x"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h2 class="mb-1">{{ role.name }}</h2>
+                    <p class="mb-0">{{ role.description|default:"Nessuna descrizione" }}</p>
+                </div>
+                <div>
                     {% if role.is_system_role %}
-                        <span class="system-role-badge">Ruolo di Sistema</span>
+                        <span class="badge bg-purple">Ruolo di Sistema</span>
                     {% endif %}
-                    {% if role.code %}
-                        <span class="badge badge-light">Codice: {{ role.code }}</span>
+                    {% if role.is_active %}
+                        <span class="badge bg-success">Attivo</span>
+                    {% else %}
+                        <span class="badge bg-danger">Inattivo</span>
                     {% endif %}
-                </p>
-            </div>
-            <div class="text-right">
-                {% if role.is_active %}
-                    <span class="badge badge-success">Attivo</span>
-                {% else %}
-                    <span class="badge badge-danger">Inattivo</span>
-                {% endif %}
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Statistiche -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-number">{{ role.permissions.count }}</div>
-            <div class="stat-label">Permessi</div>
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center border-primary">
+                <div class="card-body">
+                    <h3 class="text-primary">{{ role.permissions.count }}</h3>
+                    <p class="text-muted mb-0">Permessi</p>
+                </div>
+            </div>
         </div>
-        <div class="stat-card">
-            <div class="stat-number">{{ role.user_assignments.count }}</div>
-            <div class="stat-label">Utenti Assegnati</div>
+        <div class="col-md-3">
+            <div class="card text-center border-primary">
+                <div class="card-body">
+                    <h3 class="text-primary">{{ role.user_assignments.count }}</h3>
+                    <p class="text-muted mb-0">Utenti Assegnati</p>
+                </div>
+            </div>
         </div>
-        <div class="stat-card">
-            <div class="stat-number">{{ role.user_assignments.filter.is_active.count }}</div>
-            <div class="stat-label">Assegnazioni Attive</div>
+        <div class="col-md-3">
+            <div class="card text-center border-success">
+                <div class="card-body">
+                    <h3 class="text-success">{{ role.user_assignments.filter.is_active.count }}</h3>
+                    <p class="text-muted mb-0">Assegnazioni Attive</p>
+                </div>
+            </div>
         </div>
-        <div class="stat-card">
-            <div class="stat-number">{{ role.user_assignments.filter.is_expired.count }}</div>
-            <div class="stat-label">Assegnazioni Scadute</div>
+        <div class="col-md-3">
+            <div class="card text-center border-danger">
+                <div class="card-body">
+                    <h3 class="text-danger">{{ role.user_assignments.filter.is_expired.count }}</h3>
+                    <p class="text-muted mb-0">Assegnazioni Scadute</p>
+                </div>
+            </div>
         </div>
     </div>
 
     <div class="row">
         <!-- Informazioni ruolo -->
         <div class="col-md-6">
-            <div class="info-card">
-                <h4><i class="fas fa-info-circle"></i> Informazioni Ruolo</h4>
-                <div class="info-row">
-                    <span class="info-label">Nome:</span>
-                    <span class="info-value">{{ role.name }}</span>
+            <div class="card border-info mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> Informazioni Ruolo</h5>
                 </div>
-                <div class="info-row">
-                    <span class="info-label">Codice:</span>
-                    <span class="info-value">{{ role.code|default:"Non specificato" }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Descrizione:</span>
-                    <span class="info-value">{{ role.description|default:"Nessuna descrizione" }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Stato:</span>
-                    <span class="info-value">
-                        {% if role.is_active %}
-                            <span class="badge badge-success">Attivo</span>
-                        {% else %}
-                            <span class="badge badge-danger">Inattivo</span>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <tr>
+                            <th width="30%">Nome:</th>
+                            <td>{{ role.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>Codice:</th>
+                            <td>{{ role.code|default:"Non specificato" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Descrizione:</th>
+                            <td>{{ role.description|default:"Nessuna descrizione" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Stato:</th>
+                            <td>
+                                {% if role.is_active %}
+                                    <span class="badge bg-success">Attivo</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Inattivo</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Tipo:</th>
+                            <td>
+                                {% if role.is_system_role %}
+                                    <span class="badge bg-primary">Sistema</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Personalizzato</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Data creazione:</th>
+                            <td>{{ role.created_at|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Ultima modifica:</th>
+                            <td>{{ role.updated_at|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        {% if role.notes %}
+                        <tr>
+                            <th>Note:</th>
+                            <td>{{ role.notes }}</td>
+                        </tr>
                         {% endif %}
-                    </span>
+                    </table>
                 </div>
-                <div class="info-row">
-                    <span class="info-label">Tipo:</span>
-                    <span class="info-value">
-                        {% if role.is_system_role %}
-                            <span class="badge badge-primary">Sistema</span>
-                        {% else %}
-                            <span class="badge badge-secondary">Personalizzato</span>
-                        {% endif %}
-                    </span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Data creazione:</span>
-                    <span class="info-value">{{ role.created_at|date:"d/m/Y H:i" }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Ultima modifica:</span>
-                    <span class="info-value">{{ role.updated_at|date:"d/m/Y H:i" }}</span>
-                </div>
-                {% if role.notes %}
-                <div class="info-row">
-                    <span class="info-label">Note:</span>
-                    <span class="info-value">{{ role.notes }}</span>
-                </div>
-                {% endif %}
             </div>
 
             <!-- Azioni -->
-            <div class="info-card">
-                <h4><i class="fas fa-cogs"></i> Azioni</h4>
-                <div class="btn-group-vertical w-100" role="group">
-                    {% if not role.is_system_role %}
-                        <a href="#" class="btn btn-outline-primary mb-2">
-                            <i class="fas fa-edit"></i> Modifica Ruolo
+            <div class="card border-secondary mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-cogs"></i> Azioni</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if not role.is_system_role %}
+                            <a href="#" class="btn btn-outline-primary">
+                                <i class="fas fa-edit"></i> Modifica Ruolo
+                            </a>
+                            <button class="btn btn-outline-{% if role.is_active %}warning{% else %}success{% endif %}" onclick="toggleRoleStatus()">
+                                <i class="fas fa-toggle-on"></i> 
+                                {% if role.is_active %}Disattiva{% else %}Attiva{% endif %} Ruolo
+                            </button>
+                        {% endif %}
+                        <a href="{% url 'Cripto1:role_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> Torna alla Lista
                         </a>
-                        <button class="btn btn-outline-warning mb-2" onclick="toggleRoleStatus()">
-                            <i class="fas fa-toggle-on"></i> 
-                            {% if role.is_active %}Disattiva{% else %}Attiva{% endif %} Ruolo
-                        </button>
-                    {% endif %}
-                    <a href="{% url 'Cripto1:role_list' %}" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left"></i> Torna alla Lista
-                    </a>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Permessi -->
         <div class="col-md-6">
-            <h4><i class="fas fa-key"></i> Permessi Assegnati</h4>
-            {% regroup role.permissions.all by category as permission_categories %}
-            {% for category in permission_categories %}
-            <div class="permission-category">
-                <h5>
-                    <i class="fas fa-folder"></i> {{ category.grouper|default:"Generale" }}
-                    <span class="badge badge-primary">{{ category.list|length }}</span>
-                </h5>
-                {% for permission in category.list %}
-                <div class="permission-item">
-                    <div>
-                        <div class="permission-name">{{ permission.name }}</div>
-                        {% if permission.description %}
-                        <div class="permission-description">{{ permission.description }}</div>
-                        {% endif %}
-                    </div>
+            <div class="card border-success mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-key"></i> Permessi Assegnati</h5>
                 </div>
-                {% endfor %}
+                <div class="card-body">
+                    {% regroup role.permissions.all by category as permission_categories %}
+                    {% for category in permission_categories %}
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0">
+                                <i class="fas fa-folder"></i> {{ category.grouper|default:"Generale" }}
+                                <span class="badge bg-primary">{{ category.list|length }}</span>
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            {% for permission in category.list %}
+                            <div class="mb-2">
+                                <div class="fw-bold">{{ permission.name }}</div>
+                                {% if permission.description %}
+                                <div class="text-muted small">{{ permission.description }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-key fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Nessun permesso assegnato</h5>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
-            {% empty %}
-            <div class="info-card">
-                <p class="text-muted text-center">Nessun permesso assegnato</p>
-            </div>
-            {% endfor %}
         </div>
     </div>
 
     <!-- Utenti assegnati -->
     <div class="row">
         <div class="col-12">
-            <div class="info-card">
-                <h4><i class="fas fa-users"></i> Utenti Assegnati</h4>
-                {% for user_role in role.user_assignments.all %}
-                <div class="user-assignment">
-                    <div class="user-assignment-header">
-                        <div class="user-name">{{ user_role.user.username }}</div>
-                        <div class="d-flex align-items-center">
-                            {% if user_role.is_expired %}
-                                <span class="assignment-status status-expired">Scaduto</span>
-                            {% else %}
-                                <span class="assignment-status status-active">Attivo</span>
-                            {% endif %}
-                            <form method="POST" action="{% url 'Cripto1:remove_role' user_role.user.id role.id %}" 
-                                  style="display: inline; margin-left: 10px;">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-outline-danger btn-sm" 
-                                        onclick="return confirm('Sei sicuro di voler rimuovere questo ruolo?')">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                    <div class="assignment-details">
-                        <p><strong>Assegnato da:</strong> {{ user_role.assigned_by.username|default:"Sistema" }}</p>
-                        <p><strong>Data assegnazione:</strong> {{ user_role.assigned_at|date:"d/m/Y H:i" }}</p>
-                        {% if user_role.expires_at %}
-                            <p><strong>Scadenza:</strong> {{ user_role.expires_at|date:"d/m/Y H:i" }}</p>
-                        {% endif %}
-                        {% if user_role.notes %}
-                            <p><strong>Note:</strong> {{ user_role.notes }}</p>
-                        {% endif %}
-                    </div>
+            <div class="card border-primary mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-users"></i> Utenti Assegnati</h5>
                 </div>
-                {% empty %}
-                <p class="text-muted text-center">Nessun utente assegnato a questo ruolo</p>
-                {% endfor %}
+                <div class="card-body">
+                    {% if role.user_assignments.all %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Utente</th>
+                                    <th>Stato</th>
+                                    <th>Assegnato da</th>
+                                    <th>Data assegnazione</th>
+                                    <th>Scadenza</th>
+                                    <th>Note</th>
+                                    <th>Azioni</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user_role in role.user_assignments.all %}
+                                <tr>
+                                    <td>{{ user_role.user.username }}</td>
+                                    <td>
+                                        {% if user_role.is_expired %}
+                                            <span class="badge bg-danger">Scaduto</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Attivo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ user_role.assigned_by.username|default:"Sistema" }}</td>
+                                    <td>{{ user_role.assigned_at|date:"d/m/Y H:i" }}</td>
+                                    <td>{{ user_role.expires_at|date:"d/m/Y H:i"|default:"-" }}</td>
+                                    <td>{{ user_role.notes|truncatechars:30|default:"-" }}</td>
+                                    <td>
+                                        <form method="POST" action="{% url 'Cripto1:remove_role' user_role.user.id role.id %}" 
+                                              style="display: inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                                    onclick="return confirm('Sei sicuro di voler rimuovere questo ruolo?')">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Nessun utente assegnato a questo ruolo</h5>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
@@ -381,4 +262,4 @@ function toggleRoleStatus() {
     }
 }
 </script>
-{% endblock %} 
+{% endblock %}

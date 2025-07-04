@@ -165,7 +165,7 @@ class TransactionAdmin(admin.ModelAdmin, ExportCsvMixin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin, ExportCsvMixin):
-    list_display = ['user', 'is_active', 'department', 'position', 'created_at', 'last_login_date', 'login_attempts']
+    list_display = ['user', 'is_active', 'department', 'position', 'created_at', 'last_login_date', 'login_attempts','user', 'user_key', 'public_key']
     list_filter = ['is_active', 'department', 'created_at', 'last_login_date']
     search_fields = ['user__username', 'user__email', 'user__first_name', 'user__last_name', 'department', 'position']
     readonly_fields = ['created_at', 'last_login_date', 'last_login_ip']
@@ -183,6 +183,10 @@ class UserProfileAdmin(admin.ModelAdmin, ExportCsvMixin):
         }),
         ('Altro', {
             'fields': ('profile_picture', 'notes', 'created_at'),
+            'classes': ('collapse',)
+        }),
+        ('Chiavi', {
+            'fields': ('user_key', 'public_key', 'private_key'),
             'classes': ('collapse',)
         }),
     )

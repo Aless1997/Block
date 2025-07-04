@@ -3,145 +3,46 @@
 
 {% block title %}Crea Nuovo Utente{% endblock %}
 
-{% block extra_css %}
-<style>
-    .create-user-card {
-        background: white;
-        border-radius: 15px;
-        padding: 30px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-        max-width: 800px;
-        margin: 0 auto;
-    }
-    
-    .form-section {
-        background: #f8f9fa;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 20px;
-    }
-    
-    .form-section h5 {
-        color: #007bff;
-        margin-bottom: 20px;
-        border-bottom: 2px solid #007bff;
-        padding-bottom: 10px;
-    }
-    
-    .form-group {
-        margin-bottom: 20px;
-    }
-    
-    .form-label {
-        font-weight: bold;
-        color: #495057;
-        margin-bottom: 8px;
-    }
-    
-    .form-control {
-        border-radius: 8px;
-        border: 2px solid #e9ecef;
-        padding: 12px 15px;
-        transition: border-color 0.3s ease, box-shadow 0.3s ease;
-    }
-    
-    .form-control:focus {
-        border-color: #007bff;
-        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-    }
-    
-    .required-field::after {
-        content: " *";
-        color: #dc3545;
-    }
-    
-    .btn-create {
-        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-        border: none;
-        border-radius: 25px;
-        padding: 12px 30px;
-        font-weight: bold;
-        transition: transform 0.3s ease;
-    }
-    
-    .btn-create:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
-    }
-    
-    .btn-cancel {
-        background: #6c757d;
-        border: none;
-        border-radius: 25px;
-        padding: 12px 30px;
-        font-weight: bold;
-    }
-    
-    .password-strength {
-        margin-top: 5px;
-        font-size: 0.9rem;
-    }
-    
-    .strength-weak {
-        color: #dc3545;
-    }
-    
-    .strength-medium {
-        color: #ffc107;
-    }
-    
-    .strength-strong {
-        color: #28a745;
-    }
-    
-    .role-info {
-        background: #e9ecef;
-        border-radius: 8px;
-        padding: 15px;
-        margin-top: 10px;
-    }
-    
-    .role-description {
-        font-size: 0.9rem;
-        color: #6c757d;
-        margin-top: 5px;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="container-fluid">
-    <div class="row justify-content-center">
+<div class="container-fluid mt-4">
+    <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1><i class="fas fa-user-plus"></i> Crea Nuovo Utente</h1>
-                <a href="{% url 'Cripto1:user_list' %}" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left"></i> Torna alla Lista
-                </a>
+                <h2>
+                    <i class="fas fa-user-plus"></i> Crea Nuovo Utente
+                    <small class="text-muted">Aggiungi un nuovo utente al sistema</small>
+                </h2>
+                <div>
+                    <a href="{% url 'Cripto1:user_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Torna alla Lista
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 
     <div class="row justify-content-center">
-        <div class="col-12">
-            <div class="create-user-card">
-                <form method="POST">
-                    {% csrf_token %}
-                    
-                    <!-- Informazioni di base -->
-                    <div class="form-section">
-                        <h5><i class="fas fa-user"></i> Informazioni di Base</h5>
+        <div class="col-12 col-lg-10">
+            <form method="POST">
+                {% csrf_token %}
+                
+                <!-- Informazioni di base -->
+                <div class="card border-primary mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-user"></i> Informazioni di Base</h5>
+                    </div>
+                    <div class="card-body">
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label required-field">Username</label>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Username <span class="text-danger">*</span></label>
                                     <input type="text" name="username" class="form-control" required
                                            placeholder="Inserisci username">
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label required-field">Email</label>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Email <span class="text-danger">*</span></label>
                                     <input type="email" name="email" class="form-control" required
                                            placeholder="Inserisci email">
                                 </div>
@@ -149,59 +50,67 @@
                         </div>
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Nome</label>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Nome</label>
                                     <input type="text" name="first_name" class="form-control"
                                            placeholder="Inserisci nome">
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Cognome</label>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Cognome</label>
                                     <input type="text" name="last_name" class="form-control"
                                            placeholder="Inserisci cognome">
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Password -->
-                    <div class="form-section">
-                        <h5><i class="fas fa-lock"></i> Password</h5>
+                <!-- Password -->
+                <div class="card border-danger mb-4">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0"><i class="fas fa-lock"></i> Password</h5>
+                    </div>
+                    <div class="card-body">
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label required-field">Password</label>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Password <span class="text-danger">*</span></label>
                                     <input type="password" name="password" id="password" class="form-control" required
                                            placeholder="Inserisci password">
-                                    <div class="password-strength" id="password-strength"></div>
+                                    <div class="password-strength mt-2" id="password-strength"></div>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label required-field">Conferma Password</label>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Conferma Password <span class="text-danger">*</span></label>
                                     <input type="password" name="confirm_password" id="confirm_password" class="form-control" required
                                            placeholder="Conferma password">
-                                    <div class="password-strength" id="password-match"></div>
+                                    <div class="password-strength mt-2" id="password-match"></div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Informazioni aziendali -->
-                    <div class="form-section">
-                        <h5><i class="fas fa-building"></i> Informazioni Aziendali</h5>
+                <!-- Informazioni aziendali -->
+                <div class="card border-info mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-building"></i> Informazioni Aziendali</h5>
+                    </div>
+                    <div class="card-body">
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Dipartimento</label>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Dipartimento</label>
                                     <input type="text" name="department" class="form-control"
                                            placeholder="Inserisci dipartimento">
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Posizione</label>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Posizione</label>
                                     <input type="text" name="position" class="form-control"
                                            placeholder="Inserisci posizione">
                                 </div>
@@ -209,21 +118,25 @@
                         </div>
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Telefono</label>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Telefono</label>
                                     <input type="tel" name="phone" class="form-control"
                                            placeholder="Inserisci telefono">
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Ruolo di default -->
-                    <div class="form-section">
-                        <h5><i class="fas fa-user-tag"></i> Ruolo di Default</h5>
-                        <div class="form-group">
-                            <label class="form-label">Seleziona ruolo iniziale</label>
-                            <select name="default_role" class="form-control" id="default_role">
+                <!-- Ruolo di default -->
+                <div class="card border-success mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-user-tag"></i> Ruolo di Default</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Seleziona ruolo iniziale</label>
+                            <select name="default_role" class="form-select" id="default_role">
                                 <option value="">Nessun ruolo (da assegnare successivamente)</option>
                                 {% for role in roles %}
                                 <option value="{{ role.name }}" data-description="{{ role.description }}">
@@ -231,23 +144,23 @@
                                 </option>
                                 {% endfor %}
                             </select>
-                            <div class="role-info" id="role-info" style="display: none;">
+                            <div class="alert alert-light mt-3" id="role-info" style="display: none;">
                                 <div class="role-description" id="role-description"></div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Pulsanti -->
-                    <div class="text-center mt-4">
-                        <button type="submit" class="btn btn-primary btn-create me-3">
-                            <i class="fas fa-save"></i> Crea Utente
-                        </button>
-                        <a href="{% url 'Cripto1:user_list' %}" class="btn btn-secondary btn-cancel">
-                            <i class="fas fa-times"></i> Annulla
-                        </a>
-                    </div>
-                </form>
-            </div>
+                <!-- Pulsanti -->
+                <div class="d-flex justify-content-center gap-3 mb-5">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="fas fa-save"></i> Crea Utente
+                    </button>
+                    <a href="{% url 'Cripto1:user_list' %}" class="btn btn-secondary btn-lg">
+                        <i class="fas fa-times"></i> Annulla
+                    </a>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -269,11 +182,11 @@ $(document).ready(function() {
         if (password.match(/[^a-zA-Z0-9]/)) strength++;
         
         if (strength < 3) {
-            feedback = '<span class="strength-weak">Password debole</span>';
+            feedback = '<span class="text-danger">Password debole</span>';
         } else if (strength < 4) {
-            feedback = '<span class="strength-medium">Password media</span>';
+            feedback = '<span class="text-warning">Password media</span>';
         } else {
-            feedback = '<span class="strength-strong">Password forte</span>';
+            feedback = '<span class="text-success">Password forte</span>';
         }
         
         $('#password-strength').html(feedback);
@@ -287,9 +200,9 @@ $(document).ready(function() {
         if (confirm === '') {
             $('#password-match').html('');
         } else if (password === confirm) {
-            $('#password-match').html('<span class="strength-strong">Password corrispondono</span>');
+            $('#password-match').html('<span class="text-success">Password corrispondono</span>');
         } else {
-            $('#password-match').html('<span class="strength-weak">Password non corrispondono</span>');
+            $('#password-match').html('<span class="text-danger">Password non corrispondono</span>');
         }
     });
     
@@ -325,4 +238,4 @@ $(document).ready(function() {
     });
 });
 </script>
-{% endblock %} 
+{% endblock %}
