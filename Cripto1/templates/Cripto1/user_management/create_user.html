@@ -94,6 +94,33 @@
                     </div>
                 </div>
 
+                <!-- Password chiave privata -->
+                <div class="card border-warning mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="fas fa-key"></i> Password Chiave Privata</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Password Chiave Privata <span class="text-danger">*</span></label>
+                                    <input type="password" name="private_key_password" id="private_key_password" class="form-control" required placeholder="Password per cifrare la chiave privata">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Conferma Password Chiave Privata <span class="text-danger">*</span></label>
+                                    <input type="password" name="confirm_private_key_password" id="confirm_private_key_password" class="form-control" required placeholder="Conferma password chiave privata">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="alert alert-info mt-2">
+                            Questa password verrà usata per cifrare la chiave privata dell'utente.<br>
+                            <strong>Conservala con cura!</strong>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Informazioni aziendali -->
                 <div class="card border-info mb-4">
                     <div class="card-header bg-info text-white">
@@ -219,6 +246,18 @@ $(document).ready(function() {
         }
     });
     
+    // Validazione password chiave privata
+    $('#confirm_private_key_password').on('input', function() {
+        var pk = $('#private_key_password').val();
+        var confirm = $(this).val();
+        if (confirm === '') {
+            // nessun feedback
+        } else if (pk === confirm) {
+            $(this).removeClass('is-invalid').addClass('is-valid');
+        } else {
+            $(this).removeClass('is-valid').addClass('is-invalid');
+        }
+    });
     // Validazione form
     $('form').on('submit', function(e) {
         var password = $('#password').val();
@@ -233,6 +272,23 @@ $(document).ready(function() {
         if (password.length < 8) {
             e.preventDefault();
             alert('La password deve essere di almeno 8 caratteri!');
+            return false;
+        }
+        var pk = $('#private_key_password').val();
+        var pk_confirm = $('#confirm_private_key_password').val();
+        if (!pk || !pk_confirm) {
+            e.preventDefault();
+            alert('La password della chiave privata è obbligatoria!');
+            return false;
+        }
+        if (pk !== pk_confirm) {
+            e.preventDefault();
+            alert('Le password della chiave privata non corrispondono!');
+            return false;
+        }
+        if (pk.length < 8) {
+            e.preventDefault();
+            alert('La password della chiave privata deve essere di almeno 8 caratteri!');
             return false;
         }
     });

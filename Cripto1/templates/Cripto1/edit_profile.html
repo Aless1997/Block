@@ -81,42 +81,7 @@
                         </a>
                     </div>
                     <hr>
-                    <div class="mt-4">
-                        <h6 class="mb-3">Password Chiave Privata</h6>
-                        <form method="post" action="{% url 'Cripto1:reset_private_key_password' %}" class="needs-validation" novalidate>
-                            {% csrf_token %}
-                            <div class="row g-3">
-                                <div class="col-md-4">
-                                    <div class="form-floating">
-                                        <input type="password" class="form-control" id="current_private_key_password" name="current_private_key_password" required>
-                                        <label for="current_private_key_password">Password Attuale</label>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="form-floating">
-                                        <input type="text" class="form-control" id="private_key_hash" name="private_key_hash" required>
-                                        <label for="private_key_hash">Hash Chiave</label>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="form-floating">
-                                        <input type="password" class="form-control" id="new_private_key_password" name="new_private_key_password" required>
-                                        <label for="new_private_key_password">Nuova Password</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="text-end mt-3">
-                                <button type="submit" class="btn btn-warning">
-                                    <i class="fas fa-sync-alt me-2"></i>Reimposta Password
-                                </button>
-                            </div>
-                        </form>
-                        {% if reset_private_key_message %}
-                            <div class="alert alert-info mt-3">
-                                <i class="fas fa-info-circle me-2"></i>{{ reset_private_key_message }}
-                            </div>
-                        {% endif %}
-                    </div>
+
                 </div>
             </div>
         </div>

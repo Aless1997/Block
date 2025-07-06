@@ -1,16 +1,22 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
 from Cripto1.models import Permission, Role, UserRole, UserProfile
-from django.utils import timezone
-
 
 class Command(BaseCommand):
-    help = 'Inizializza i permessi e ruoli di base del sistema'
+    help = 'Configura completamente il sistema di permessi'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--force',
+            action='store_true',
+            help='Forza la ricreazione di tutti i permessi e ruoli',
+        )
 
     def handle(self, *args, **options):
-        self.stdout.write('Inizializzazione permessi e ruoli...')
+        self.stdout.write('=== CONFIGURAZIONE SISTEMA PERMESSI ===')
         
-        # Crea i permessi di base
+        # 1. Crea tutti i permessi necessari
+        self.stdout.write('\n1. Creazione permessi...')
         permissions_data = [
             # Gestione Utenti
             ('view_users', 'Visualizza Utenti', 'Visualizzare la lista degli utenti'),
@@ -40,12 +46,16 @@ class Command(BaseCommand):
         
         created_permissions = []
         for codename, name, description in permissions_data:
+            if options['force']:
+                # Rimuovi permesso esistente se force=True
+                Permission.objects.filter(codename=codename).delete()
+            
             permission, created = Permission.objects.get_or_create(
                 codename=codename,
                 defaults={
                     'name': name,
                     'description': description,
-                    'category': 'USER_MANAGEMENT' if 'user' in codename else 
+                    'category': 'USER_MANAGEMENT' if 'user' in codename or 'role' in codename else
                                'TRANSACTION_MANAGEMENT' if 'transaction' in codename else
                                'BLOCKCHAIN_MANAGEMENT' if 'blockchain' in codename or 'mine' in codename else
                                'SYSTEM_ADMIN'
@@ -55,7 +65,8 @@ class Command(BaseCommand):
             if created:
                 self.stdout.write(f'  Creato permesso: {name}')
         
-        # Crea i ruoli di base
+        # 2. Crea i ruoli di base
+        self.stdout.write('\n2. Creazione ruoli...')
         roles_data = [
             {
                 'name': 'Super Admin',
@@ -90,6 +101,10 @@ class Command(BaseCommand):
         ]
         
         for role_data in roles_data:
+            if options['force']:
+                # Rimuovi ruolo esistente se force=True
+                Role.objects.filter(name=role_data['name']).delete()
+            
             role, created = Role.objects.get_or_create(
                 name=role_data['name'],
                 defaults={
@@ -103,26 +118,45 @@ class Command(BaseCommand):
                 self.stdout.write(f'  Creato ruolo: {role.name}')
             
             # Assegna i permessi al ruolo
+            role.permissions.clear()  # Rimuovi permessi esistenti
             for permission_codename in role_data['permissions']:
                 try:
                     permission = Permission.objects.get(codename=permission_codename)
                     role.permissions.add(permission)
                 except Permission.DoesNotExist:
-                    self.stdout.write(f'    Permesso {permission_codename} non trovato per ruolo {role.name}')
+                    self.stdout.write(f'    ERRORE: Permesso {permission_codename} non trovato per ruolo {role.name}')
         
-        # Assegna il ruolo Super Admin al primo superuser
-        superusers = User.objects.filter(is_superuser=True)
-        if superusers.exists():
-            super_admin_role = Role.objects.get(name='Super Admin')
-            for superuser in superusers:
-                user_profile, created = UserProfile.objects.get_or_create(user=superuser)
-                if not UserRole.objects.filter(user=superuser, role=super_admin_role).exists():
-                    UserRole.objects.create(
-                        user=superuser,
-                        role=super_admin_role,
-                        assigned_by=superuser,
-                        notes='Assegnazione automatica al superuser'
-                    )
-                    self.stdout.write(f'  Assegnato ruolo Super Admin a {superuser.username}')
+        # 3. Crea profili per tutti gli utenti
+        self.stdout.write('\n3. Creazione profili utente...')
+        for user in User.objects.all():
+            profile, created = UserProfile.objects.get_or_create(user=user)
+            if created:
+                self.stdout.write(f'  Creato profilo per {user.username}')
         
-        self.stdout.write(self.style.SUCCESS('Inizializzazione completata con successo!')) 
+        # 4. Assegna ruolo Super Admin ai superuser
+        self.stdout.write('\n4. Assegnazione ruoli ai superuser...')
+        super_admin_role = Role.objects.get(name='Super Admin')
+        for user in User.objects.filter(is_superuser=True):
+            if not UserRole.objects.filter(user=user, role=super_admin_role).exists():
+                UserRole.objects.create(
+                    user=user,
+                    role=super_admin_role,
+                    assigned_by=user,
+                    notes='Assegnazione automatica al superuser'
+                )
+                self.stdout.write(f'  Assegnato ruolo Super Admin a {user.username}')
+        
+        # 5. Verifica finale
+        self.stdout.write('\n5. Verifica finale...')
+        total_permissions = Permission.objects.count()
+        total_roles = Role.objects.count()
+        total_user_profiles = UserProfile.objects.count()
+        total_user_roles = UserRole.objects.count()
+        
+        self.stdout.write(f'  Permessi totali: {total_permissions}')
+        self.stdout.write(f'  Ruoli totali: {total_roles}')
+        self.stdout.write(f'  Profili utente: {total_user_profiles}')
+        self.stdout.write(f'  Assegnazioni ruoli: {total_user_roles}')
+        
+        self.stdout.write(self.style.SUCCESS('\n=== CONFIGURAZIONE COMPLETATA ==='))
+        self.stdout.write('\nPer testare i permessi, visita: /debug/permissions/') 

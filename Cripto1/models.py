@@ -253,10 +253,18 @@ class UserProfile(models.Model):
 
     def has_permission(self, permission_codename):
         """Verifica se l'utente ha un determinato permesso attraverso i suoi ruoli"""
-        return self.get_roles().filter(
-            permissions__codename=permission_codename,
-            permissions__is_active=True
-        ).exists()
+        # Verifica se l'utente è superuser (bypass completo)
+        if self.user.is_superuser:
+            return True
+        
+        # Verifica i permessi attraverso i ruoli
+        user_roles = self.get_roles()
+        for role in user_roles:
+            role_permissions = role.permissions.filter(is_active=True)
+            if role_permissions.filter(codename=permission_codename).exists():
+                return True
+        
+        return False
 
     def get_all_permissions(self):
         """Restituisce tutti i permessi dell'utente"""
@@ -296,6 +304,25 @@ class UserProfile(models.Model):
         except UserRole.DoesNotExist:
             return False
 
+    def get_active_roles_count(self):
+        """Restituisce il numero di ruoli attivi"""
+        return self.get_roles().count()
+
+    def get_roles_summary(self):
+        """Restituisce un riassunto dei ruoli attivi"""
+        roles = self.get_roles()
+        return [{
+            'name': role.name,
+            'description': role.description,
+            'assigned_at': role.user_assignments.filter(user=self.user).first().assigned_at if role.user_assignments.filter(user=self.user).exists() else None,
+            'expires_at': role.user_assignments.filter(user=self.user).first().expires_at if role.user_assignments.filter(user=self.user).exists() else None,
+        } for role in roles]
+
+    def refresh_roles_cache(self):
+        """Aggiorna la cache dei ruoli (per compatibilità futura)"""
+        # Questo metodo può essere usato per aggiornare cache o metadati
+        pass
+
     def is_locked(self):
         """Verifica se l'account è bloccato"""
         if self.locked_until and timezone.now() < self.locked_until:
@@ -321,6 +348,37 @@ class UserProfile(models.Model):
         if ip_address:
             self.last_login_ip = ip_address
         self.save()
+
+    def test_permissions(self, permission_list=None):
+        """Testa una lista di permessi e restituisce i risultati"""
+        if permission_list is None:
+            permission_list = ['view_users', 'add_users', 'edit_users', 'manage_roles']
+        
+        results = {}
+        for perm in permission_list:
+            results[perm] = self.has_permission(perm)
+        
+        return results
+    
+    def get_permissions_summary(self):
+        """Restituisce un riassunto dei permessi dell'utente"""
+        all_permissions = self.get_all_permissions()
+        permissions_by_category = {}
+        
+        for perm in all_permissions:
+            if perm.category not in permissions_by_category:
+                permissions_by_category[perm.category] = []
+            permissions_by_category[perm.category].append({
+                'codename': perm.codename,
+                'name': perm.name,
+                'description': perm.description
+            })
+        
+        return {
+            'total_permissions': len(all_permissions),
+            'permissions_by_category': permissions_by_category,
+            'roles': [role.name for role in self.get_roles()]
+        }
 
 class SmartContract(models.Model):
     name = models.CharField(max_length=255, unique=True)
@@ -358,7 +416,7 @@ class AuditLog(models.Model):
         ('DECRYPT_MESSAGE', 'Decifratura Messaggio'),
         ('MINE_BLOCK', 'Mining Blocco'),
         ('EDIT_PROFILE', 'Modifica Profilo'),
-        ('RESET_PRIVATE_KEY', 'Reset Chiave Privata'),
+
         ('ADMIN_ACTION', 'Azione Amministrativa'),
         ('SECURITY_EVENT', 'Evento di Sicurezza'),
         ('EXPORT_DATA', 'Export Dati'),
@@ -509,6 +567,38 @@ class Role(models.Model):
             return True
         except Permission.DoesNotExist:
             return False
+    
+    def get_active_users_count(self):
+        """Restituisce il numero di utenti attivi con questo ruolo"""
+        return self.user_assignments.filter(is_active=True).count()
+    
+    def get_users(self):
+        """Restituisce tutti gli utenti con questo ruolo (attivi e non scaduti)"""
+        return User.objects.filter(
+            user_roles__role=self,
+            user_roles__is_active=True
+        ).exclude(
+            user_roles__expires_at__lt=timezone.now()
+        ).distinct()
+
+    def get_active_assignments_count(self):
+        """Restituisce il numero di assegnazioni attive"""
+        return UserRole.objects.filter(
+            role=self,
+            is_active=True
+        ).count()
+
+    def get_expired_assignments_count(self):
+        """Restituisce il numero di assegnazioni scadute"""
+        return UserRole.objects.filter(
+            role=self,
+            is_active=True,
+            expires_at__lt=timezone.now()
+        ).count()
+
+    def get_total_assignments_count(self):
+        """Restituisce il numero totale di assegnazioni"""
+        return UserRole.objects.filter(role=self).count()
 
 class UserRole(models.Model):
     """Modello per l'assegnazione di ruoli agli utenti"""

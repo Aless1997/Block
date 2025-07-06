@@ -22,6 +22,7 @@ def permission_required(permission_codename, redirect_url=None):
             
             try:
                 user_profile = UserProfile.objects.get(user=request.user)
+                
                 if not user_profile.is_active:
                     messages.error(request, 'Il tuo account è stato disattivato.')
                     return redirect('Cripto1:login')
@@ -30,6 +31,7 @@ def permission_required(permission_codename, redirect_url=None):
                     messages.error(request, 'Il tuo account è temporaneamente bloccato.')
                     return redirect('Cripto1:login')
                 
+                # Verifica il permesso
                 if user_profile.has_permission(permission_codename):
                     return view_func(request, *args, **kwargs)
                 else:

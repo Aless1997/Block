@@ -548,3 +548,39 @@ def user_permissions_ajax(request):
         return JsonResponse({'error': 'Utente non trovato'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500) 
+
+
+def debug_permissions(request):
+    """Vista di debug per testare i permessi dell'utente corrente"""
+    if not request.user.is_authenticated:
+        return redirect('Cripto1:login')
+    
+    try:
+        user_profile = UserProfile.objects.get(user=request.user)
+        
+        # Test dei permessi principali
+        test_permissions = [
+            'view_users', 'add_users', 'edit_users', 'delete_users', 
+            'activate_users', 'assign_roles', 'manage_roles',
+            'view_transactions', 'create_transactions', 'view_blockchain'
+        ]
+        
+        permission_results = user_profile.test_permissions(test_permissions)
+        permissions_summary = user_profile.get_permissions_summary()
+        
+        context = {
+            'user': request.user,
+            'profile': user_profile,
+            'roles': [role.name for role in user_profile.get_roles()],
+            'permission_tests': permission_results,
+            'permissions_summary': permissions_summary
+        }
+        
+        return render(request, 'Cripto1/debug_permissions.html', context)
+        
+    except UserProfile.DoesNotExist:
+        messages.error(request, 'Profilo utente non trovato.')
+        return redirect('Cripto1:dashboard')
+    except Exception as e:
+        messages.error(request, f'Errore durante il debug: {str(e)}')
+        return redirect('Cripto1:dashboard') 

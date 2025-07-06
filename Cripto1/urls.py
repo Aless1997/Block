@@ -20,7 +20,7 @@ urlpatterns = [
     path('users/', views.users_feed, name='users_feed'),
     path('all-transactions/', views.all_transactions_view, name='all_transactions'),
     path('unviewed-transactions/', views.unviewed_transactions_list, name='unviewed_transactions_list'),
-    path('profile/reset-private-key-password/', views.reset_private_key_password, name='reset_private_key_password'),
+
 
     # Transaction URLs
     path('transaction/create/', views.create_transaction, name='create_transaction'),
@@ -33,7 +33,7 @@ urlpatterns = [
     path('admdashboard/verify-blockchain/', views.verify_blockchain, name='verify_blockchain'),
     path('admdashboard/export/<str:model>/', views.export_csv, name='export_csv'),
     path('admdashboard/user/<int:user_id>/', views.admin_user_detail, name='admin_user_detail'),
-    path('admdashboard/user/<int:user_id>/regenerate-key/', views.regenerate_user_private_key, name='regenerate_user_private_key'),
+
 
     # Audit Log URLs
     path('audit-logs/', views.audit_logs_view, name='audit_logs'),
@@ -51,11 +51,15 @@ urlpatterns = [
     path('user-management/users/<int:user_id>/toggle-status/', views.toggle_user_status, name='toggle_user_status'),
     path('user-management/users/<int:user_id>/assign-role/', views.assign_role, name='assign_role'),
     path('user-management/users/<int:user_id>/remove-role/<int:role_id>/', views.remove_role, name='remove_role'),
+
     
     # Role Management URLs
     path('user-management/roles/', views.role_list, name='role_list'),
     path('user-management/roles/create/', views.create_role, name='create_role'),
     path('user-management/roles/<int:role_id>/', views.role_detail, name='role_detail'),
+
+    # Debug URLs
+    path('debug/permissions/', views.debug_permissions, name='debug_permissions'),
 
     # Blockchain mining
     path('mine-block/', views.mine_block, name='mine_block'),

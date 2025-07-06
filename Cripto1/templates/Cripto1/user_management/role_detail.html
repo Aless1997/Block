@@ -3,6 +3,54 @@
 
 {% block title %}Dettaglio Ruolo - {{ role.name }}{% endblock %}
 
+{% block extra_js %}
+<script>
+// Funzione per aggiornare automaticamente i dati della pagina
+function refreshRoleData() {
+    fetch(window.location.href)
+        .then(response => response.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Aggiorna le statistiche
+            const statsCards = doc.querySelectorAll('.col-md-3 .card-body h3');
+            const currentStatsCards = document.querySelectorAll('.col-md-3 .card-body h3');
+            
+            if (statsCards.length === currentStatsCards.length) {
+                for (let i = 0; i < statsCards.length; i++) {
+                    currentStatsCards[i].textContent = statsCards[i].textContent;
+                }
+            }
+            
+            // Aggiorna la lista degli utenti assegnati
+            const usersTable = doc.querySelector('.table-responsive');
+            if (usersTable) {
+                const currentUsersTable = document.querySelector('.table-responsive');
+                if (currentUsersTable) {
+                    currentUsersTable.innerHTML = usersTable.innerHTML;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Errore durante l\'aggiornamento:', error);
+        });
+}
+
+// Aggiorna i dati ogni 5 secondi
+setInterval(refreshRoleData, 5000);
+
+// Funzione per cambiare lo stato del ruolo
+function toggleRoleStatus() {
+    if (confirm('Sei sicuro di voler cambiare lo stato di questo ruolo?')) {
+        // Qui potresti implementare una chiamata AJAX per cambiare lo stato
+        // Per ora ricarica la pagina
+        location.reload();
+    }
+}
+</script>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid mt-4">
     <!-- Header ruolo -->
@@ -43,7 +91,7 @@
         <div class="col-md-3">
             <div class="card text-center border-primary">
                 <div class="card-body">
-                    <h3 class="text-primary">{{ role.user_assignments.count }}</h3>
+                    <h3 class="text-primary">{{ total_assignments }}</h3>
                     <p class="text-muted mb-0">Utenti Assegnati</p>
                 </div>
             </div>
@@ -51,7 +99,7 @@
         <div class="col-md-3">
             <div class="card text-center border-success">
                 <div class="card-body">
-                    <h3 class="text-success">{{ role.user_assignments.filter.is_active.count }}</h3>
+                    <h3 class="text-success">{{ active_assignments }}</h3>
                     <p class="text-muted mb-0">Assegnazioni Attive</p>
                 </div>
             </div>
@@ -59,7 +107,7 @@
         <div class="col-md-3">
             <div class="card text-center border-danger">
                 <div class="card-body">
-                    <h3 class="text-danger">{{ role.user_assignments.filter.is_expired.count }}</h3>
+                    <h3 class="text-danger">{{ expired_assignments }}</h3>
                     <p class="text-muted mb-0">Assegnazioni Scadute</p>
                 </div>
             </div>
@@ -195,7 +243,7 @@
                     <h5 class="mb-0"><i class="fas fa-users"></i> Utenti Assegnati</h5>
                 </div>
                 <div class="card-body">
-                    {% if role.user_assignments.all %}
+                    {% if user_roles %}
                     <div class="table-responsive">
                         <table class="table table-striped">
                             <thead>
@@ -210,7 +258,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for user_role in role.user_assignments.all %}
+                                {% for user_role in user_roles %}
                                 <tr>
                                     <td>{{ user_role.user.username }}</td>
                                     <td>
@@ -250,16 +298,4 @@
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-function toggleRoleStatus() {
-    if (confirm('Sei sicuro di voler cambiare lo stato di questo ruolo?')) {
-        // Qui potresti implementare una chiamata AJAX per cambiare lo stato
-        // Per ora ricarica la pagina
-        location.reload();
-    }
-}
-</script>
 {% endblock %}

@@ -70,17 +70,7 @@
             </div>
         </div>
     </div>
-    {% if user.is_superuser %}
-    <div class="card mt-4">
-        <div class="card-body">
-            <h5 class="card-title">Azioni Amministrative</h5>
-            <form method="post" action="{% url 'Cripto1:regenerate_user_private_key' user.id %}">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-danger" onclick="return confirm('Sei sicuro di voler rigenerare la chiave privata per questo utente? Questo comporterà la perdita dell'accesso ai messaggi cifrati precedenti!');">Rigenera Chiave Privata</button>
-            </form>
-        </div>
-    </div>
-    {% endif %}
+
     <a href="{% url 'Cripto1:admin_dashboard' %}" class="btn btn-secondary mt-4">Torna alla Dashboard</a>
 </div>
 {% endblock %} 

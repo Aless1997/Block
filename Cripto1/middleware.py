@@ -24,12 +24,12 @@ class AuditLogMiddleware(MiddlewareMixin):
             'decrypt_transaction': 'DECRYPT_MESSAGE',
             'mine_block': 'MINE_BLOCK',
             'edit_profile': 'EDIT_PROFILE',
-            'reset_private_key_password': 'RESET_PRIVATE_KEY',
+
             'admin_dashboard': 'ADMIN_ACTION',
             'verify_blockchain': 'VERIFY_BLOCKCHAIN',
             'export_csv': 'EXPORT_DATA',
             'admin_user_detail': 'USER_MANAGEMENT',
-            'regenerate_user_private_key': 'USER_MANAGEMENT',
+
         }
 
     def process_request(self, request):
@@ -99,7 +99,7 @@ class AuditLogMiddleware(MiddlewareMixin):
 
     def get_severity(self, action_type):
         """Determina la severità dell'azione"""
-        high_severity = ['LOGIN', 'LOGOUT', 'REGISTER', 'RESET_PRIVATE_KEY', 'ADMIN_ACTION']
+        high_severity = ['LOGIN', 'LOGOUT', 'REGISTER', 'ADMIN_ACTION']
         critical_severity = ['SECURITY_EVENT']
         
         if action_type in critical_severity:
@@ -121,12 +121,12 @@ class AuditLogMiddleware(MiddlewareMixin):
             'decrypt_transaction': f"Decifratura messaggio",
             'mine_block': f"Mining nuovo blocco",
             'edit_profile': f"Modifica profilo utente",
-            'reset_private_key_password': f"Reset password chiave privata",
+
             'admin_dashboard': f"Accesso dashboard amministrativa",
             'verify_blockchain': f"Verifica integrità blockchain",
             'export_csv': f"Export dati in CSV",
             'admin_user_detail': f"Visualizzazione dettagli utente",
-            'regenerate_user_private_key': f"Rigenerazione chiave privata utente",
+
         }
         
         base_description = descriptions.get(view_name, f"Azione: {view_name}")

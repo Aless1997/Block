@@ -101,104 +101,137 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row justify-content-center">
+<div class="container-fluid mt-4">
+    <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1><i class="fas fa-edit"></i> Modifica Utente</h1>
-                <a href="{% url 'Cripto1:user_detail' user_profile.user.id %}" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left"></i> Torna al Dettaglio
-                </a>
+                <h2>
+                    <i class="fas fa-user-edit"></i> Modifica Utente
+                    <small class="text-muted">Aggiorna i dati dell'utente</small>
+                </h2>
+                <div>
+                    <a href="{% url 'Cripto1:user_detail' user_profile.user.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Torna al Dettaglio
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 
     <div class="row justify-content-center">
-        <div class="col-12">
-            <div class="edit-user-card">
-                <form method="POST" enctype="multipart/form-data">
-                    {% csrf_token %}
-                    
-                    <!-- Informazioni di base -->
-                    <div class="form-section">
-                        <h5><i class="fas fa-user"></i> Informazioni di Base</h5>
+        <div class="col-12 col-lg-10">
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                <!-- Informazioni di base -->
+                <div class="card border-primary mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-user"></i> Informazioni di Base</h5>
+                    </div>
+                    <div class="card-body">
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label required-field">Nome</label>
-                                    <input type="text" name="first_name" class="form-control" required
-                                           value="{{ form.first_name.value|default:'' }}"
-                                           placeholder="Inserisci nome">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Username</label>
+                                    <input type="text" name="username" class="form-control" value="{{ user_profile.user.username }}" disabled>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label required-field">Cognome</label>
-                                    <input type="text" name="last_name" class="form-control" required
-                                           value="{{ form.last_name.value|default:'' }}"
-                                           placeholder="Inserisci cognome">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Email <span class="text-danger">*</span></label>
+                                    <input type="email" name="email" class="form-control" required value="{{ form.email.value|default:user_profile.user.email }}">
                                 </div>
                             </div>
                         </div>
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label required-field">Email</label>
-                                    <input type="email" name="email" class="form-control" required
-                                           value="{{ form.email.value|default:'' }}"
-                                           placeholder="Inserisci email">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Nome</label>
+                                    <input type="text" name="first_name" class="form-control" value="{{ form.first_name.value|default:user_profile.user.first_name }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Cognome</label>
+                                    <input type="text" name="last_name" class="form-control" value="{{ form.last_name.value|default:user_profile.user.last_name }}">
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Informazioni aziendali -->
-                    <div class="form-section">
-                        <h5><i class="fas fa-building"></i> Informazioni Aziendali</h5>
+                <!-- Password Django -->
+                <div class="card border-danger mb-4">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0"><i class="fas fa-lock"></i> Password Account (opzionale)</h5>
+                    </div>
+                    <div class="card-body">
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Dipartimento</label>
-                                    <input type="text" name="department" class="form-control"
-                                           value="{{ form.department.value|default:'' }}"
-                                           placeholder="Inserisci dipartimento">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Nuova Password</label>
+                                    <input type="password" name="password" id="password" class="form-control" placeholder="Lascia vuoto per non cambiare">
+                                    <div class="password-strength mt-2" id="password-strength"></div>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Posizione</label>
-                                    <input type="text" name="position" class="form-control"
-                                           value="{{ form.position.value|default:'' }}"
-                                           placeholder="Inserisci posizione">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Telefono</label>
-                                    <input type="tel" name="phone" class="form-control"
-                                           value="{{ form.phone.value|default:'' }}"
-                                           placeholder="Inserisci telefono">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Contatto di Emergenza</label>
-                                    <input type="text" name="emergency_contact" class="form-control"
-                                           value="{{ form.emergency_contact.value|default:'' }}"
-                                           placeholder="Inserisci contatto di emergenza">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Conferma Nuova Password</label>
+                                    <input type="password" name="confirm_password" id="confirm_password" class="form-control" placeholder="Conferma password">
+                                    <div class="password-strength mt-2" id="password-match"></div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Foto profilo -->
-                    <div class="form-section">
-                        <h5><i class="fas fa-camera"></i> Foto Profilo</h5>
+
+
+                <!-- Informazioni aziendali -->
+                <div class="card border-info mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="fas fa-building"></i> Informazioni Aziendali</h5>
+                    </div>
+                    <div class="card-body">
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="form-group">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Dipartimento</label>
+                                    <input type="text" name="department" class="form-control" value="{{ form.department.value|default:user_profile.department }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Posizione</label>
+                                    <input type="text" name="position" class="form-control" value="{{ form.position.value|default:user_profile.position }}">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Telefono</label>
+                                    <input type="tel" name="phone" class="form-control" value="{{ form.phone.value|default:user_profile.phone }}">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Contatto di Emergenza</label>
+                                    <input type="text" name="emergency_contact" class="form-control" value="{{ form.emergency_contact.value|default:user_profile.emergency_contact }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Foto profilo -->
+                <div class="card border-secondary mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0"><i class="fas fa-camera"></i> Foto Profilo</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
                                     {% if user_profile.profile_picture %}
                                         <div class="text-center">
                                             <img src="{{ user_profile.profile_picture.url }}" 
@@ -208,8 +241,7 @@
                                         </div>
                                     {% endif %}
                                     <label class="form-label">Nuova foto profilo</label>
-                                    <input type="file" name="profile_picture" class="form-control" 
-                                           accept="image/*">
+                                    <input type="file" name="profile_picture" class="form-control" accept="image/*">
                                     <small class="form-text text-muted">
                                         Formati supportati: JPG, PNG, GIF. Dimensione massima: 5MB
                                     </small>
@@ -217,48 +249,31 @@
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Note -->
-                    <div class="form-section">
-                        <h5><i class="fas fa-sticky-note"></i> Note</h5>
-                        <div class="form-group">
-                            <label class="form-label">Note aggiuntive</label>
-                            <textarea name="notes" class="form-control" rows="4" 
-                                      placeholder="Inserisci note aggiuntive sull'utente">{{ form.notes.value|default:'' }}</textarea>
+                <!-- Note -->
+                <div class="card border-light mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0"><i class="fas fa-sticky-note"></i> Note</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Note aggiuntive</label>
+                            <textarea name="notes" class="form-control" rows="4">{{ form.notes.value|default:user_profile.notes }}</textarea>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Informazioni correnti -->
-                    <div class="form-section">
-                        <h5><i class="fas fa-info-circle"></i> Informazioni Correnti</h5>
-                        <div class="current-info">
-                            <p><strong>Username:</strong> {{ user_profile.user.username }}</p>
-                            <p><strong>Data registrazione:</strong> {{ user_profile.created_at|date:"d/m/Y H:i" }}</p>
-                            <p><strong>Ultimo login:</strong> {{ user_profile.last_login_date|date:"d/m/Y H:i"|default:"Mai" }}</p>
-                            <p><strong>Stato account:</strong> 
-                                {% if user_profile.is_locked %}
-                                    <span class="badge badge-warning">Bloccato</span>
-                                {% elif user_profile.is_active %}
-                                    <span class="badge badge-success">Attivo</span>
-                                {% else %}
-                                    <span class="badge badge-danger">Inattivo</span>
-                                {% endif %}
-                            </p>
-                            <p><strong>Tentativi di login:</strong> {{ user_profile.login_attempts }}</p>
-                        </div>
-                    </div>
-
-                    <!-- Pulsanti -->
-                    <div class="text-center mt-4">
-                        <button type="submit" class="btn btn-success btn-save me-3">
-                            <i class="fas fa-save"></i> Salva Modifiche
-                        </button>
-                        <a href="{% url 'Cripto1:user_detail' user_profile.user.id %}" class="btn btn-secondary btn-cancel">
-                            <i class="fas fa-times"></i> Annulla
-                        </a>
-                    </div>
-                </form>
-            </div>
+                <!-- Pulsanti -->
+                <div class="d-flex justify-content-center gap-3 mb-5">
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="fas fa-save"></i> Salva Modifiche
+                    </button>
+                    <a href="{% url 'Cripto1:user_detail' user_profile.user.id %}" class="btn btn-secondary btn-lg">
+                        <i class="fas fa-times"></i> Annulla
+                    </a>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -278,7 +293,6 @@ $(document).ready(function() {
             reader.readAsDataURL(file);
         }
     });
-    
     // Validazione dimensione file
     $('input[name="profile_picture"]').on('change', function() {
         var file = this.files[0];
@@ -287,6 +301,59 @@ $(document).ready(function() {
             this.value = '';
         }
     });
+    // Controllo forza password
+    $('#password').on('input', function() {
+        var password = $(this).val();
+        var strength = 0;
+        var feedback = '';
+        if (password.length >= 8) strength++;
+        if (password.match(/[a-z]/)) strength++;
+        if (password.match(/[A-Z]/)) strength++;
+        if (password.match(/[0-9]/)) strength++;
+        if (password.match(/[^a-zA-Z0-9]/)) strength++;
+        if (strength < 3) {
+            feedback = '<span class="text-danger">Password debole</span>';
+        } else if (strength < 4) {
+            feedback = '<span class="text-warning">Password media</span>';
+        } else {
+            feedback = '<span class="text-success">Password forte</span>';
+        }
+        $('#password-strength').html(feedback);
+    });
+    // Controllo corrispondenza password
+    $('#confirm_password').on('input', function() {
+        var password = $('#password').val();
+        var confirm = $(this).val();
+        if (confirm === '') {
+            $('#password-match').html('');
+        } else if (password === confirm) {
+            $('#password-match').html('<span class="text-success">Password corrispondono</span>');
+        } else {
+            $('#password-match').html('<span class="text-danger">Password non corrispondono</span>');
+        }
+    });
+
+
+    // Validazione form
+    $('form').on('submit', function(e) {
+        var password = $('#password').val();
+        var confirm = $('#confirm_password').val();
+        if (password || confirm) {
+            if (password !== confirm) {
+                e.preventDefault();
+                alert('Le password account non corrispondono!');
+                return false;
+            }
+            if (password.length > 0 && password.length < 8) {
+                e.preventDefault();
+                alert('La password account deve essere di almeno 8 caratteri!');
+                return false;
+            }
+        }
+
+    });
 });
 </script>
 {% endblock %} 
+</script>
+ 
