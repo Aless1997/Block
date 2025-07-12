@@ -48,31 +48,18 @@
                                             {% endif %}
                                             {{ tx.type|title }} Transaction
                                         </h5>
-                                        <small>{{ tx.timestamp_datetime }}</small>
+                                        
                                     </div>
-                                    <p class="mb-1">
-                                        {% if tx.type == 'text' %}
-                                            {{ tx.content|truncatechars:100 }}
-                                        {% else %}
-                                            File: {{ tx.file.name|slice:"19:" }}
-                                        {% endif %}
-                                    </p>
-                                    <small>
-                                        From: {{ tx.sender.username }} | To: {{ tx.receiver.username }}
-                                        {% if tx.is_encrypted %}
-                                            <span class="badge bg-info">Encrypted</span>
-                                        {% endif %}
-                                    </small>
                                 </a>
                             {% endfor %}
                         </div>
                     {% else %}
-                        <p class="text-muted">No recent transactions.</p>
+                        <p class="text-muted">No transactions found.</p>
                     {% endif %}
                 </div>
             </div>
         </div>
-
+        
         <!-- Blockchain Status -->
         <div class="col-md-4">
             <div class="card">
@@ -80,29 +67,50 @@
                     <h4 class="mb-0">Blockchain Status</h4>
                 </div>
                 <div class="card-body">
-                    {% if blockchain_state %}
-                        <div class="mb-3">
-                            <h5>Latest Block</h5>
-                            {% if blocks %}
-                                <p><strong>Block #{{ blocks.0.index }}</strong></p>
-                                <p><small class="text-muted">Hash: {{ blocks.0.hash|truncatechars:20 }}</small></p>
-                                <p><small class="text-muted">Timestamp: {{ blocks.0.timestamp_datetime }}</small></p>
-                            {% else %}
-                                <p class="text-muted">No blocks yet.</p>
-                            {% endif %}
+                    {% if blockchain_info %}
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Blocchi:</span>
+                            <strong>{{ blockchain_info.blocks }}</strong>
                         </div>
-
-                        <div class="mb-3">
-                            <h5>Pending Transactions</h5>
-                            <p>{{ pending_count }} transactions waiting to be mined
-                                {% if pending_count > 0 %}
-                                    <span class="spinner-border spinner-border-sm text-warning" role="status" aria-hidden="true"></span>
-                                {% endif %}
-                            </p>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Transazioni:</span>
+                            <strong>{{ blockchain_info.transactions }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Ultimo blocco:</span>
+                            <strong>{{ blockchain_info.last_block_time|date:"d/m/Y H:i" }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Difficoltà:</span>
+                            <strong>{{ blockchain_info.difficulty }}</strong>
                         </div>
                     {% else %}
                         <p class="text-muted">Blockchain not initialized.</p>
                     {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Aggiungi i canvas per i grafici -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Distribuzione Transazioni</h4>
+                </div>
+                <div class="card-body">
+                    <canvas id="transactionTypeChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Attività Blockchain</h4>
+                </div>
+                <div class="card-body">
+                    <canvas id="blockchainActivityChart"></canvas>
                 </div>
             </div>
         </div>
@@ -141,11 +149,11 @@
         </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block extra_js %}
 {{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     $('#transactionForm').submit(function(e) {
@@ -223,9 +231,91 @@ document.addEventListener('DOMContentLoaded', function() {
             {% endif %}
         {% endfor %}
     {% endif %}
+    
+    // Inizializzazione grafici
+    // Grafico Transazioni per Tipo
+    const txTypeCtx = document.getElementById('transactionTypeChart').getContext('2d');
+    
+    // Conteggio transazioni per tipo
+    const textCount = {{ text_transactions_count|default:0 }};
+    const fileCount = {{ file_transactions_count|default:0 }};
+    
+    new Chart(txTypeCtx, {
+        type: 'pie',
+        data: {
+            labels: ['Messaggi di Testo', 'File'],
+            datasets: [{
+                data: [textCount, fileCount],
+                backgroundColor: [
+                    'rgba(54, 162, 235, 0.7)',
+                    'rgba(255, 99, 132, 0.7)'
+                ],
+                borderColor: [
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 99, 132, 1)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                title: {
+                    display: true,
+                    text: 'Distribuzione Transazioni per Tipo'
+                }
+            }
+        }
+    });
+    
+    // Grafico Attività Blockchain
+    const blockchainCtx = document.getElementById('blockchainActivityChart').getContext('2d');
+    
+    // Dati per il grafico
+    const blockData = {{ block_data|safe }};
+    
+    new Chart(blockchainCtx, {
+        type: 'line',
+        data: {
+            labels: blockData.map(item => `Blocco #${item.index}`),
+            datasets: [{
+                label: 'Transazioni per Blocco',
+                data: blockData.map(item => item.tx_count),
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Numero di Transazioni'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Blocchi'
+                    }
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Transazioni per Blocco'
+                }
+            }
+        }
+    });
 });
 </script>
-{% endblock %}
 
 <style>
     .mini-cube {
@@ -259,3 +349,4 @@ document.addEventListener('DOMContentLoaded', function() {
         100% { transform: rotateX(360deg) rotateY(360deg); }
     }
 </style>
+{% endblock %}

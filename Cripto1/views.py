@@ -48,9 +48,19 @@ def register(request):
         email = request.POST.get('email')
         private_key_password = request.POST.get('private_key_password')
         
+        # Verifica la robustezza della password
+        if len(password) < 8:
+            messages.error(request, 'La password deve essere di almeno 8 caratteri')
+            return render(request, 'Cripto1/register.html')
+        
+        # Verifica che la password contenga almeno un numero e una lettera
+        if not (any(c.isdigit() for c in password) and any(c.isalpha() for c in password)):
+            messages.error(request, 'La password deve contenere almeno un numero e una lettera')
+            return render(request, 'Cripto1/register.html')
+        
         if User.objects.filter(username=username).exists():
             messages.error(request, 'Username già esistente')
-            return redirect('register')
+            return render(request, 'Cripto1/register.html')
             
         user = User.objects.create_user(username=username, email=email, password=password)
         user_profile = UserProfile.objects.create(user=user)
@@ -130,18 +140,26 @@ def login_view(request):
 
 @login_required
 def all_transactions_view(request):
-    transactions_list = Transaction.objects.filter(
-        models.Q(sender=request.user) | 
-        models.Q(receiver=request.user)
-    ).order_by('-timestamp')
+    # Se l'utente è un superuser, mostra tutte le transazioni
+    if request.user.is_superuser:
+        transactions_list = Transaction.objects.all().order_by('-timestamp')
+    else:
+        # Altrimenti mostra solo le transazioni dell'utente corrente
+        transactions_list = Transaction.objects.filter(
+            models.Q(sender=request.user) | 
+            models.Q(receiver=request.user)
+        ).order_by('-timestamp')
 
     for tx in transactions_list:
         tx.timestamp_datetime = datetime.fromtimestamp(tx.timestamp, tz=timezone.get_current_timezone())
         # Determine direction for display
         if tx.sender == request.user:
             tx.direction = "Inviata"
-        else:
+        elif tx.receiver == request.user:
             tx.direction = "Ricevuta"
+        else:
+            # Per i superuser che visualizzano transazioni di altri utenti
+            tx.direction = "Tra altri utenti"
     
     paginator = Paginator(transactions_list, 10) # Show 10 transactions per page
     page = request.GET.get('page')
@@ -220,10 +238,45 @@ def dashboard(request):
         receiver=request.user,
         is_viewed=False
     ).count()
+    
+    # Dati per i grafici
+    # Conteggio transazioni per tipo
+    text_transactions_count = Transaction.objects.filter(
+        models.Q(sender=request.user) | models.Q(receiver=request.user),
+        type='text'
+    ).count()
+    
+    file_transactions_count = Transaction.objects.filter(
+        models.Q(sender=request.user) | models.Q(receiver=request.user),
+        type='file'
+    ).count()
+    
+    # Dati per il grafico dell'attività blockchain
+    blocks_with_tx_count = []
+    for block in latest_blocks:
+        tx_count = block.transactions.count()
+        blocks_with_tx_count.append({
+            'index': block.index,
+            'tx_count': tx_count
+        })
 
+    # Aggiungi queste righe prima di definire il context
+    blockchain_info = None
+    if blockchain_state:
+        last_block = Block.objects.order_by('-index').first()
+        if last_block:
+            last_block.timestamp_datetime = datetime.fromtimestamp(last_block.timestamp, tz=timezone.get_current_timezone())
+        blockchain_info = {
+            'blocks': Block.objects.count(),
+            'transactions': Transaction.objects.count(),
+            'last_block_time': last_block.timestamp_datetime if last_block else None,
+            'difficulty': blockchain_state.difficulty
+        }
+    
     context = {
         'user_profile': user_profile,
         'blockchain_state': blockchain_state,
+        'blockchain_info': blockchain_info,  # Aggiungi questa riga
         'blocks': latest_blocks,
         'transactions': user_transactions,
         'percentage_mined': percentage_mined,
@@ -231,6 +284,9 @@ def dashboard(request):
         'unviewed_received_transactions_count': unviewed_received_transactions_count,
         'create_transaction_url': reverse('Cripto1:create_transaction'),
         'all_transactions_url': reverse('Cripto1:all_transactions'),
+        'text_transactions_count': text_transactions_count,
+        'file_transactions_count': file_transactions_count,
+        'block_data': json.dumps(blocks_with_tx_count),
     }
     return render(request, 'Cripto1/dashboard.html', context)
 
@@ -610,8 +666,8 @@ def personal_profile(request):
 def transaction_details(request, transaction_id):
     tx = get_object_or_404(Transaction, id=transaction_id)
     
-    # Check if user is either sender or receiver
-    if request.user != tx.sender and request.user != tx.receiver:
+    # Check if user is either sender or receiver or a superuser
+    if request.user != tx.sender and request.user != tx.receiver and not request.user.is_superuser:
         messages.error(request, 'You do not have permission to view this transaction.')
         return redirect('Cripto1:dashboard')
     
@@ -631,6 +687,7 @@ def transaction_details(request, transaction_id):
         'is_valid': is_valid,
         'is_sender': request.user == tx.sender,
         'is_receiver': request.user == tx.receiver,
+        'is_superuser': request.user.is_superuser,
     }
     
     return render(request, 'Cripto1/transaction_details.html', context)
@@ -639,8 +696,8 @@ def transaction_details(request, transaction_id):
 def download_file(request, transaction_id):
     tx = get_object_or_404(Transaction, id=transaction_id)
     
-    # Check if user is either sender or receiver
-    if request.user != tx.sender and request.user != tx.receiver:
+    # Check if user is either sender or receiver or a superuser
+    if request.user != tx.sender and request.user != tx.receiver and not request.user.is_superuser:
         messages.error(request, 'You do not have permission to download this file.')
         return redirect('Cripto1:dashboard')
     
@@ -778,6 +835,74 @@ def admin_dashboard(request):
 
     # Lista di tutti i profili utente
     user_profiles = UserProfile.objects.select_related('user').all()
+    
+    # Dati per i grafici
+    
+    # Crescita blockchain negli ultimi 30 giorni
+    end_date = timezone.now()
+    start_date = end_date - timedelta(days=30)
+    
+    # Prepara i dati per il grafico di crescita
+    blockchain_growth_data = []
+    current_date = start_date
+    while current_date <= end_date:
+        next_date = current_date + timedelta(days=1)
+        
+        # Conta i blocchi creati in questo giorno
+        day_blocks = Block.objects.filter(
+            timestamp__gte=current_date.timestamp(),
+            timestamp__lt=next_date.timestamp()
+        ).count()
+        
+        # Conta le transazioni create in questo giorno
+        day_transactions = Transaction.objects.filter(
+            timestamp__gte=current_date.timestamp(),
+            timestamp__lt=next_date.timestamp()
+        ).count()
+        
+        blockchain_growth_data.append({
+            'date': current_date.strftime('%d/%m'),
+            'blocks': day_blocks,
+            'transactions': day_transactions
+        })
+        
+        current_date = next_date
+    
+    # Distribuzione transazioni
+    text_count = Transaction.objects.filter(type='text').count()
+    file_count = Transaction.objects.filter(type='file').count()
+    encrypted_count = Transaction.objects.filter(is_encrypted=True).count()
+    unencrypted_count = Transaction.objects.filter(is_encrypted=False).count()
+    
+    transaction_distribution_data = {
+        'text_count': text_count,
+        'file_count': file_count,
+        'encrypted_count': encrypted_count,
+        'unencrypted_count': unencrypted_count
+    }
+    
+    # Attività utenti (top 10)
+    top_users = User.objects.annotate(
+        sent_count=models.Count('sent_transactions'),
+        received_count=models.Count('received_transactions')
+    ).order_by('-sent_count')[:10]
+    
+    user_activity_data = []
+    for user in top_users:
+        user_activity_data.append({
+            'username': user.username,
+            'sent': user.sent_count,
+            'received': user.received_count
+        })
+    
+    # Difficoltà mining nel tempo
+    mining_difficulty_data = []
+    for block in Block.objects.all().order_by('index')[:50]:  # Limita a 50 blocchi per performance
+        if block.difficulty:  # Verifica che il campo non sia nullo
+            mining_difficulty_data.append({
+                'index': block.index,
+                'difficulty': block.difficulty
+            })
 
     context = {
         'total_users': total_users,
@@ -786,6 +911,10 @@ def admin_dashboard(request):
         'active_addresses': active_addresses,
         'total_volume': total_volume,
         'user_profiles': user_profiles,
+        'blockchain_growth_data': json.dumps(blockchain_growth_data),
+        'transaction_distribution_data': json.dumps(transaction_distribution_data),
+        'user_activity_data': json.dumps(user_activity_data),
+        'mining_difficulty_data': json.dumps(mining_difficulty_data),
     }
     return render(request, 'Cripto1/admin_dashboard.html', context)
 
