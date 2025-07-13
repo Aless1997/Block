@@ -70,4 +70,9 @@ urlpatterns = [
 
     # Django admin (deve essere l'ULTIMA e fuori dal blocco app)
     path('admin/', admin.site.urls),
+    # Aggiungi questa riga per il pattern backup_management
+    path('admdashboard/backup/', views.backup_management, name='backup_management'),
+    # Aggiungi questa riga alle URL esistenti
+    path('admdashboard/backup/upload/', views.upload_backup, name='upload_backup'),
+    path('admdashboard/backup/download/<str:filename>/', views.download_backup, name='download_backup'),
 ]

@@ -217,6 +217,20 @@
         </div>
     </div>
 
+    <!-- Aggiungi questa card nella dashboard di amministrazione -->
+    <div class="col-md-6 mb-4">
+    <div class="card h-100">
+        <div class="card-header">
+            <h5>Backup e Ripristino</h5>
+        </div>
+        <div class="card-body">
+            <p>Gestisci i backup della blockchain e ripristina da backup precedenti.</p>
+            <a href="{% url 'Cripto1:backup_management' %}" class="btn btn-primary btn-sm">
+                <i class="fas fa-database me-2"></i> Gestione Backup
+            </a>
+        </div>
+    </div>
+</div>
     {% block extra_js %}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>

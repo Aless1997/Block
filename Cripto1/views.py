@@ -2030,3 +2030,123 @@ def debug_permissions(request):
     except Exception as e:
         messages.error(request, f'Errore durante il debug: {str(e)}')
         return redirect('Cripto1:dashboard')
+
+@staff_member_required
+def backup_management(request):
+    backup_dir = 'blockchain_backups'
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    # Elenco dei backup disponibili
+    backups = []
+    for file in os.listdir(backup_dir):
+        if file.endswith('.zip') and file.startswith('blockchain_backup_'):
+            file_path = os.path.join(backup_dir, file)
+            file_stats = os.stat(file_path)
+            backups.append({
+                'filename': file,
+                'path': file_path,
+                'size': file_stats.st_size,
+                'created': datetime.fromtimestamp(file_stats.st_mtime),
+                'download_url': reverse('Cripto1:download_backup', args=[file])
+            })
+    
+    backups.sort(key=lambda x: x['created'], reverse=True)
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'create_backup':
+            include_files = request.POST.get('include_files') == 'on'
+            
+            # Esegui il comando di backup in background
+            from django.core.management import call_command
+            try:
+                call_command('backup_blockchain', include_files=include_files)
+                messages.success(request, 'Backup creato con successo!')
+            except Exception as e:
+                messages.error(request, f'Errore durante la creazione del backup: {str(e)}')
+            
+            return redirect('Cripto1:backup_management')
+        
+        elif action == 'restore_backup':
+            backup_file = request.POST.get('backup_file')
+            if not backup_file:
+                messages.error(request, 'Nessun file di backup selezionato')
+            else:
+                backup_path = os.path.join(backup_dir, backup_file)
+                if not os.path.exists(backup_path):
+                    messages.error(request, 'File di backup non trovato')
+                else:
+                    # Esegui il comando di ripristino
+                    from django.core.management import call_command
+                    try:
+                        call_command('restore_blockchain', backup_path, skip_confirmation=True)
+                        messages.success(request, 'Ripristino completato con successo!')
+                    except Exception as e:
+                        messages.error(request, f'Errore durante il ripristino: {str(e)}')
+            
+            return redirect('Cripto1:backup_management')
+        
+        elif action == 'delete_backup':
+            backup_file = request.POST.get('backup_file')
+            if not backup_file:
+                messages.error(request, 'Nessun file di backup selezionato')
+            else:
+                backup_path = os.path.join(backup_dir, backup_file)
+                if os.path.exists(backup_path):
+                    os.remove(backup_path)
+                    messages.success(request, 'Backup eliminato con successo')
+                else:
+                    messages.error(request, 'File di backup non trovato')
+            
+            return redirect('Cripto1:backup_management')
+    
+    context = {
+        'backups': backups
+    }
+    
+    return render(request, 'Cripto1/backup_management.html', context)
+
+@staff_member_required
+def download_backup(request, filename):
+    backup_dir = 'blockchain_backups'
+    file_path = os.path.join(backup_dir, filename)
+    
+    if not os.path.exists(file_path):
+        messages.error(request, 'File di backup non trovato')
+        return redirect('Cripto1:backup_management')
+    
+    with open(file_path, 'rb') as f:
+        response = HttpResponse(f.read(), content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+@staff_member_required
+def upload_backup(request):
+    if request.method == 'POST' and request.FILES.get('backup_file'):
+        backup_file = request.FILES['backup_file']
+        
+        # Verifica che il file sia un file ZIP
+        if not backup_file.name.endswith('.zip'):
+            messages.error(request, 'Il file deve essere in formato ZIP')
+            return redirect('Cripto1:backup_management')
+        
+        # Crea la directory di backup se non esiste
+        backup_dir = 'blockchain_backups'
+        os.makedirs(backup_dir, exist_ok=True)
+        
+        # Genera un nome file basato sulla data e ora corrente
+        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'blockchain_backup_{timestamp}.zip'
+        file_path = os.path.join(backup_dir, filename)
+        
+        # Salva il file caricato
+        with open(file_path, 'wb+') as destination:
+            for chunk in backup_file.chunks():
+                destination.write(chunk)
+        
+        messages.success(request, f'Backup importato con successo come {filename}')
+    else:
+        messages.error(request, 'Nessun file selezionato')
+    
+    return redirect('Cripto1:backup_management')
