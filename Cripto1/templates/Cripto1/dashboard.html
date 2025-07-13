@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container mt-4">
     <div class="row">
-        <div class="col-md-12 mb-4">
+        <div class="col-12 mb-4">
             <div class="d-flex justify-content-between align-items-center">
                 <h2>Dashboard
                     {% if unviewed_received_transactions_count > 0 %}
@@ -14,7 +14,7 @@
                         </a>
                     {% endif %}
                 </h2>
-                <div>
+                <div class="d-none d-md-block"> <!-- Nascondi su mobile, usiamo il FAB e la bottom nav -->
                     <a href="{% url 'Cripto1:create_transaction' %}" class="btn btn-primary">
                         <i class="fas fa-plus"></i> New Transaction
                     </a>
@@ -27,41 +27,86 @@
         </div>
     </div>
 
+    <!-- Blockchain Status (mostrato prima su mobile) -->
+    <div class="row d-md-none"> <!-- Visibile solo su mobile -->
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Blockchain Status</h4>
+                </div>
+                <div class="card-body">
+                    {% if blockchain_info %}
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Blocchi:</span>
+                            <strong>{{ blockchain_info.blocks }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Transazioni:</span>
+                            <strong>{{ blockchain_info.transactions }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Ultimo blocco:</span>
+                            <strong>{{ blockchain_info.last_block_time|date:"d/m/Y H:i" }}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Difficoltà:</span>
+                            <strong>{{ blockchain_info.difficulty }}</strong>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">Blockchain not initialized.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="row">
         <!-- Recent Transactions -->
-        <div class="col-md-8">
+        <div class="col-md-8 col-12">
             <div class="card">
                 <div class="card-header">
                     <h4 class="mb-0">Recent Transactions</h4>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-0"> <!-- Rimuovi padding per un look più mobile-friendly -->
                     {% if transactions %}
-                        <div class="list-group">
+                        <div class="list-group list-group-flush">
                             {% for tx in transactions %}
-                                <a href="{% url 'Cripto1:transaction_details' tx.id %}" class="list-group-item list-group-item-action">
-                                    <div class="d-flex w-100 justify-content-between">
-                                        <h5 class="mb-1">
-                                            {% if tx.type == 'text' %}
-                                                <i class="fas fa-envelope"></i>
-                                            {% else %}
-                                                <i class="fas fa-file"></i>
-                                            {% endif %}
-                                            {{ tx.type|title }} Transaction
-                                        </h5>
-                                        
+                                <a href="{% url 'Cripto1:transaction_details' tx.id %}" class="list-group-item list-group-item-action swipe-container">
+                                    <div class="d-flex w-100 justify-content-between align-items-center">
+                                        <div>
+                                            <h5 class="mb-1">
+                                                {% if tx.type == 'text' %}
+                                                    <i class="fas fa-envelope"></i>
+                                                {% else %}
+                                                    <i class="fas fa-file"></i>
+                                                {% endif %}
+                                                {{ tx.type|title }}
+                                            </h5>
+                                            <small class="text-muted">{{ tx.timestamp_datetime|date:"d/m/Y H:i" }}</small>
+                                        </div>
+                                        <i class="fas fa-chevron-right text-muted"></i>
+                                    </div>
+                                    <!-- Swipe actions -->
+                                    <div class="swipe-actions">
+                                        <div class="swipe-action archive">
+                                            <i class="fas fa-archive"></i>
+                                        </div>
+                                        <div class="swipe-action delete">
+                                            <i class="fas fa-trash"></i>
+                                        </div>
                                     </div>
                                 </a>
                             {% endfor %}
                         </div>
                     {% else %}
-                        <p class="text-muted">No transactions found.</p>
+                        <p class="text-muted p-3">No transactions found.</p>
                     {% endif %}
                 </div>
             </div>
         </div>
         
-        <!-- Blockchain Status -->
-        <div class="col-md-4">
+        <!-- Blockchain Status (desktop) -->
+        <div class="col-md-4 d-none d-md-block"> <!-- Nascondi su mobile, mostrato sopra -->
             <div class="card">
                 <div class="card-header">
                     <h4 class="mb-0">Blockchain Status</h4>
@@ -92,9 +137,9 @@
         </div>
     </div>
     
-    <!-- Aggiungi i canvas per i grafici -->
+    <!-- Grafici (responsive) -->
     <div class="row mt-4">
-        <div class="col-md-6">
+        <div class="col-md-6 col-12 mb-4">
             <div class="card">
                 <div class="card-header">
                     <h4 class="mb-0">Distribuzione Transazioni</h4>
@@ -104,7 +149,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-6 col-12 mb-4">
             <div class="card">
                 <div class="card-header">
                     <h4 class="mb-0">Attività Blockchain</h4>
@@ -116,6 +161,16 @@
         </div>
     </div>
 </div>
+
+<!-- Floating Action Button (solo mobile) -->
+<a href="{% url 'Cripto1:create_transaction' %}" class="fab d-md-none">
+    <i class="fas fa-plus"></i>
+</a>
+
+<!-- Mine Block FAB (solo mobile) -->
+<button id="mineBlockBtnMobile" class="fab d-md-none" style="bottom: calc(var(--bottom-nav-height) + 80px);">
+    <i class="fas fa-cube"></i>
+</button>
 
 <!-- Decrypt Modal -->
 <div class="modal fade" id="decryptModal" tabindex="-1" aria-labelledby="decryptModalLabel" aria-hidden="true">
@@ -314,6 +369,15 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+
+    // Collega il pulsante mobile per il mining
+    const mineBtnMobile = document.getElementById('mineBlockBtnMobile');
+    if (mineBtnMobile) {
+        mineBtnMobile.addEventListener('click', function() {
+            // Usa la stessa logica del pulsante desktop
+            document.getElementById('mineBlockBtn').click();
+        });
+    }
 });
 </script>
 

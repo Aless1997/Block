@@ -6,11 +6,16 @@
 <div class="container mt-4">
     <h2 class="mb-4">Tutte le Transazioni</h2>
 
-    {# Aggiungi il campo di input per la ricerca #}
+    {# Campo di ricerca #}
     <div class="mb-3">
-        <input type="text" id="transactionSearch" class="form-control" placeholder="Cerca tra le transazioni...">
+        <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input type="text" id="transactionSearch" class="form-control" placeholder="Cerca tra le transazioni...">
+        </div>
     </div>
-    <div class="table-responsive">
+    
+    {# Vista desktop: tabella #}
+    <div class="table-responsive d-none d-md-block">
         <table class="table" id="transactionsTable">
             <thead>
                 <tr>
@@ -37,18 +42,63 @@
                     </td>
                     <td>{{ tx.timestamp_datetime|date:"d/m/Y H:i:s" }}</td>
                     <td>{{ tx.transaction_hash|truncatechars:10 }}</td>
-                    <td>
-                        {{ tx.notes }}
-                    </td>
+                    <td>{{ tx.notes }}</td>
                     <td><a href="{% url 'Cripto1:transaction_details' tx.id %}" class="btn btn-info btn-sm">Vedi</a></td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    
+    {# Vista mobile: lista #}
+    <div class="d-md-none">
+        <div class="list-group" id="transactionsList">
+            {% for tx in all_transactions %}
+            <a href="{% url 'Cripto1:transaction_details' tx.id %}" class="list-group-item list-group-item-action swipe-container">
+                <div class="d-flex w-100 justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-1">
+                            {% if tx.type == 'text' %}
+                                <i class="fas fa-envelope me-2"></i>
+                            {% else %}
+                                <i class="fas fa-file me-2"></i>
+                            {% endif %}
+                            {{ tx.type|title }}
+                            <small class="text-muted ms-2">
+                                {% if tx.direction == 'sent' %}
+                                    <i class="fas fa-arrow-right text-primary"></i>
+                                {% else %}
+                                    <i class="fas fa-arrow-left text-success"></i>
+                                {% endif %}
+                            </small>
+                        </h5>
+                        <p class="mb-1">
+                            {% if tx.sender.userprofile.user_key == request.user.userprofile.user_key %}
+                                A: {{ tx.receiver.username }}
+                            {% else %}
+                                Da: {{ tx.sender.username }}
+                            {% endif %}
+                        </p>
+                        <small class="text-muted">{{ tx.timestamp_datetime|date:"d/m/Y H:i" }}</small>
+                    </div>
+                    <i class="fas fa-chevron-right text-muted"></i>
+                </div>
+                <!-- Swipe actions -->
+                <div class="swipe-actions">
+                    <div class="swipe-action archive">
+                        <i class="fas fa-archive"></i>
+                    </div>
+                    <div class="swipe-action delete">
+                        <i class="fas fa-trash"></i>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
 
     {# Pagination controls #}
-    <nav aria-label="Page navigation">
+    <nav aria-label="Page navigation" class="mt-4">
         <ul class="pagination justify-content-center">
             {% if all_transactions.has_previous %}
                 <li class="page-item"><a class="page-link" href="?page={{ all_transactions.previous_page_number }}">Previous</a></li>
@@ -71,7 +121,6 @@
             {% endif %}
         </ul>
     </nav>
-
 </div>
 {% endblock %}
 
@@ -79,12 +128,51 @@
 {{ block.super }}
 <script>
 $(document).ready(function() {
+    // Funzione di ricerca che agisce sia sulla tabella che sulla lista
     $('#transactionSearch').on('keyup', function() {
         var value = $(this).val().toLowerCase();
+        // Filtra tabella (desktop)
         $('#transactionsTable tbody tr').filter(function() {
             $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
         });
+        // Filtra lista (mobile)
+        $('#transactionsList a').filter(function() {
+            $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+        });
     });
+    
+    // Inizializza Hammer.js per le gesture di swipe (solo su mobile)
+    if (window.innerWidth <= 768) {
+        const listItems = document.querySelectorAll('.swipe-container');
+        listItems.forEach(item => {
+            let isOpen = false;
+            const hammer = new Hammer(item);
+            
+            hammer.on('swipeleft', function(e) {
+                // Mostra azioni di swipe
+                if (!isOpen) {
+                    item.querySelector('.swipe-actions').style.transform = 'translateX(0)';
+                    isOpen = true;
+                }
+            });
+            
+            hammer.on('swiperight', function(e) {
+                // Nascondi azioni di swipe
+                if (isOpen) {
+                    item.querySelector('.swipe-actions').style.transform = 'translateX(100%)';
+                    isOpen = false;
+                }
+            });
+            
+            // Chiudi quando si tocca altrove
+            document.addEventListener('click', function(e) {
+                if (isOpen && !item.contains(e.target)) {
+                    item.querySelector('.swipe-actions').style.transform = 'translateX(100%)';
+                    isOpen = false;
+                }
+            });
+        });
+    }
 });
 </script>
-{% endblock %} 
+{% endblock %}
