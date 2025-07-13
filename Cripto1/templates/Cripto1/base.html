@@ -237,7 +237,7 @@
 
     {% if user.is_authenticated %}
     <!-- Mobile Bottom Navigation -->
-    <div class="mobile-bottom-nav">
+    <div class="mobile-bottom-nav d-none d-sm-none"> <!-- Aggiungi classi Bootstrap per nascondere su desktop -->
         <a href="{% url 'Cripto1:dashboard' %}" class="ripple {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
             <i class="fas fa-home"></i>
             <span>Home</span>
@@ -267,76 +267,22 @@
     {% block extra_js %}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Auto-hide messages after 5 seconds
-            var alerts = document.querySelectorAll('.alert');
-            alerts.forEach(function(alert) {
-                var bsAlert = new bootstrap.Alert(alert);
-                setTimeout(function() {
-                    bsAlert.close();
-                }, 5000);
-            });
-
-            // Add loading spinner to forms
-            document.querySelectorAll('form').forEach(form => {
-                form.addEventListener('submit', function() {
-                    const submitBtn = form.querySelector('button[type="submit"]');
-                    if (submitBtn) {
-                        const originalContent = submitBtn.innerHTML;
-                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
-                        submitBtn.disabled = true;
-                        
-                        // Reset button after 30 seconds (failsafe)
-                        setTimeout(() => {
-                            submitBtn.innerHTML = originalContent;
-                            submitBtn.disabled = false;
-                        }, 30000);
+            function handleBottomNav() {
+                var bottomNav = document.querySelector('.mobile-bottom-nav');
+                if (bottomNav) {
+                    if (window.innerWidth > 576) {
+                        bottomNav.style.display = 'none';
+                    } else {
+                        bottomNav.style.display = 'flex';
                     }
-                });
-            });
-
-            // Mobile swipe gestures
-            if (window.innerWidth <= 768) {
-                // Initialize Hammer.js for swipe gestures
-                const listItems = document.querySelectorAll('.list-group-item');
-                listItems.forEach(item => {
-                    const hammer = new Hammer(item);
-                    hammer.on('swipeleft', function(e) {
-                        // Handle swipe left (e.g., show action buttons)
-                        console.log('Swipe left detected');
-                    });
-                    hammer.on('swiperight', function(e) {
-                        // Handle swipe right
-                        console.log('Swipe right detected');
-                    });
-                });
-
-                // Add pull-to-refresh functionality
-                let touchStartY = 0;
-                let touchEndY = 0;
-                const minSwipeDistance = 80;
-                
-                document.addEventListener('touchstart', function(e) {
-                    touchStartY = e.touches[0].clientY;
-                }, false);
-                
-                document.addEventListener('touchend', function(e) {
-                    touchEndY = e.changedTouches[0].clientY;
-                    if (window.scrollY === 0 && touchEndY - touchStartY > minSwipeDistance) {
-                        // User pulled down at the top of the page
-                        console.log('Pull to refresh detected');
-                        // Show refresh indicator
-                        const refreshIndicator = document.createElement('div');
-                        refreshIndicator.className = 'pull-to-refresh visible';
-                        refreshIndicator.innerHTML = '<div class="spinner-border text-primary" role="status"></div>';
-                        document.body.prepend(refreshIndicator);
-                        
-                        // Reload page after animation
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 1000);
-                    }
-                }, false);
+                }
             }
+            
+            // Esegui all'avvio
+            handleBottomNav();
+            
+            // Esegui al ridimensionamento della finestra
+            window.addEventListener('resize', handleBottomNav);
         });
     </script>
     {% endblock %}
@@ -502,12 +448,18 @@
 
         /* Bottom Navigation for Mobile */
         .mobile-bottom-nav {
-            display: none;
+            display: none !important; /* Aggiungi !important per forzare */
         }
 
-        @media (max-width: 768px) {
+        @media (min-width: 577px) {
             .mobile-bottom-nav {
-                display: flex;
+                display: none !important;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .mobile-bottom-nav {
+                display: flex !important;
                 position: fixed;
                 bottom: 0;
                 left: 0;
