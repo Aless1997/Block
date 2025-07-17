@@ -186,6 +186,39 @@
 
 
 
+                <!-- Stato Account -->
+                <div class="card border-warning mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="fas fa-shield-alt"></i> Sicurezza Account</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Tentativi di login falliti</label>
+                                    <input type="text" class="form-control" value="{{ user_profile.login_attempts }}" disabled>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Stato blocco</label>
+                                    {% if user_profile.is_locked %}
+                                        <div class="d-flex align-items-center">
+                                            <span class="badge bg-danger me-2">Bloccato fino a {{ user_profile.locked_until|date:"d/m/Y H:i" }}</span>
+                                            <div class="form-check form-switch ms-2">
+                                                <input class="form-check-input" type="checkbox" id="unlock_account" name="unlock_account" value="1">
+                                                <label class="form-check-label" for="unlock_account">Sblocca account</label>
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <span class="badge bg-success">Non bloccato</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Informazioni aziendali -->
                 <div class="card border-info mb-4">
                     <div class="card-header bg-info text-white">

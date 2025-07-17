@@ -118,9 +118,9 @@ def login_view(request):
                 
                 # Log dell'evento di sicurezza
                 AuditLog.log_action(
-                    action_type='SECURITY_EVENT',
+                    action_type='LOGIN',
                     description=f'Tentativo di login fallito per utente: {username}',
-                    severity='MEDIUM',
+                    severity='HIGH',
                     ip_address=request.META.get('REMOTE_ADDR'),
                     user_agent=request.META.get('HTTP_USER_AGENT', ''),
                     success=False,
@@ -333,13 +333,29 @@ def create_transaction(request):
 
             # Cifratura del contenuto se richiesto (solo per testo)
             encrypted_content = content
+            sender_encrypted_content = None
             if is_encrypted and transaction_type == 'text' and content:
                 print(f"DEBUG: Original content length before encryption: {len(content.encode())} bytes")
-                public_key = serialization.load_pem_public_key(
+                # Crittografia per il destinatario
+                receiver_public_key = serialization.load_pem_public_key(
                     receiver_profile.public_key.encode(),
                     backend=default_backend()
                 )
-                encrypted_content = public_key.encrypt(
+                encrypted_content = receiver_public_key.encrypt(
+                    content.encode(),
+                    padding.OAEP(
+                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                        algorithm=hashes.SHA256(),
+                        label=None
+                    )
+                ).hex()
+                
+                # Crittografia per il mittente
+                sender_public_key_obj = serialization.load_pem_public_key(
+                    user_profile.public_key.encode(),
+                    backend=default_backend()
+                )
+                sender_encrypted_content = sender_public_key_obj.encrypt(
                     content.encode(),
                     padding.OAEP(
                         mgf=padding.MGF1(algorithm=hashes.SHA256()),
@@ -358,6 +374,7 @@ def create_transaction(request):
                 'receiver': receiver.id,
                 'sender_public_key': sender_public_key,
                 'content': encrypted_content,
+                'sender_encrypted_content': sender_encrypted_content,
                 'timestamp': time.time(),
                 'is_encrypted': is_encrypted
             }
@@ -392,11 +409,27 @@ def create_transaction(request):
                                 label=None
                             )
                         )
+                        
+                        # Encrypt symmetric key for sender
+                        sender_public_key_obj = serialization.load_pem_public_key(
+                            user_profile.public_key.encode(),
+                            backend=default_backend()
+                        )
+                        sender_encrypted_symmetric_key = sender_public_key_obj.encrypt(
+                            symmetric_key,
+                            padding.OAEP(
+                                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                                algorithm=hashes.SHA256(),
+                                label=None
+                            )
+                        )
+                        
                         print(f"DEBUG: Symmetric key encrypted with RSA. Encrypted length: {len(encrypted_symmetric_key_for_db)}")
                         filename = f"{uuid.uuid4().hex}.encrypted"
                         file_to_save = ContentFile(encrypted_file_content)
                         transaction_data['original_filename'] = file.name # Store original filename for encrypted files
                         transaction_data['encrypted_symmetric_key'] = encrypted_symmetric_key_for_db.hex() # Store as hex string for JSON serialization
+                        transaction_data['sender_encrypted_symmetric_key'] = sender_encrypted_symmetric_key.hex() # Store sender's encrypted key
                         transaction_data['receiver_public_key_at_encryption'] = receiver_profile.public_key # Store receiver's public key at time of encryption
 
                     except Exception as e:
@@ -440,6 +473,7 @@ def create_transaction(request):
                 receiver=receiver,
                 sender_public_key=sender_public_key,
                 content=encrypted_content,
+                sender_encrypted_content=transaction_data.get('sender_encrypted_content'),
                 file=transaction_data.get('file'),
                 timestamp=transaction_data['timestamp'],
                 transaction_hash=transaction_hash,
@@ -448,6 +482,7 @@ def create_transaction(request):
                 original_filename=transaction_data.get('original_filename', ''), # Save original filename if present
                 # Convert back to bytes for BinaryField
                 encrypted_symmetric_key=bytes.fromhex(transaction_data['encrypted_symmetric_key']) if 'encrypted_symmetric_key' in transaction_data and transaction_data['encrypted_symmetric_key'] else None,
+                sender_encrypted_symmetric_key=bytes.fromhex(transaction_data['sender_encrypted_symmetric_key']) if 'sender_encrypted_symmetric_key' in transaction_data and transaction_data['sender_encrypted_symmetric_key'] else None,
                 receiver_public_key_at_encryption=transaction_data.get('receiver_public_key_at_encryption', ''),
                 max_downloads=max_downloads
             )
@@ -571,7 +606,14 @@ def decrypt_transaction(request):
 
             decrypted_content = None
             if tx.is_encrypted and tx.type == 'text':
-                decrypted_content = user_profile.decrypt_message(tx.content, password=password)
+                if tx.receiver == request.user:
+                    # Decrittazione per il destinatario
+                    decrypted_content = user_profile.decrypt_message(tx.content, password=password)
+                elif tx.sender == request.user and tx.sender_encrypted_content:
+                    # Decrittazione per il mittente
+                    decrypted_content = user_profile.decrypt_message(tx.sender_encrypted_content, password=password)
+                else:
+                    decrypted_content = tx.content
             else:
                 decrypted_content = tx.content
 
@@ -1651,6 +1693,23 @@ def edit_user(request, user_id):
         user_profile.emergency_contact = request.POST.get('emergency_contact', '')
         user_profile.notes = request.POST.get('notes', '')
 
+        # Gestione sblocco account
+        if request.POST.get('unlock_account') == '1' and user_profile.is_locked():
+            user_profile.reset_login_attempts()
+            messages.success(request, f'Account di {user.username} sbloccato con successo.')
+            
+            # Log dell'azione di sblocco
+            AuditLog.log_action(
+                action_type='USER_MANAGEMENT',
+                description=f'Account di {user.username} sbloccato da {request.user.username}',
+                severity='HIGH',
+                user=request.user,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                related_object_type='UserProfile',
+                related_object_id=user_profile.id,
+                success=True
+            )
+
         # Gestione foto profilo
         if 'profile_picture' in request.FILES:
             user_profile.profile_picture = request.FILES['profile_picture']
@@ -1701,7 +1760,8 @@ def edit_user(request, user_id):
 
     context = {
         'user_profile': user_profile,
-        'form': form
+        'form': form,
+        'is_locked': user_profile.is_locked()
     }
     return render(request, 'Cripto1/user_management/edit_user.html', context)
 

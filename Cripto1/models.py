@@ -55,7 +55,11 @@ class Transaction(models.Model):
     max_downloads = models.IntegerField(null=True, blank=True, default=None) # Numero massimo di download consentiti
     current_downloads = models.IntegerField(default=0) # Contatore dei download effettuati
     is_viewed = models.BooleanField(default=False) # Indica se la transazione è stata visualizzata dal destinatario
-
+    
+    # Aggiungi questi campi
+    sender_encrypted_content = models.TextField(blank=True, null=True)  # Contenuto crittografato per il mittente (per messaggi di testo)
+    sender_encrypted_symmetric_key = models.BinaryField(null=True, blank=True)  # Chiave simmetrica crittografata per il mittente (per file)
+    
     def __str__(self):
         return f"Transaction {self.transaction_hash[:10]}..."
 
@@ -73,6 +77,8 @@ class Transaction(models.Model):
             'original_filename': self.original_filename or '', # Include original filename
             'encrypted_symmetric_key': self.encrypted_symmetric_key.hex() if self.encrypted_symmetric_key else '',
             'receiver_public_key_at_encryption': self.receiver_public_key_at_encryption or '',
+            'sender_encrypted_content': self.sender_encrypted_content or '',
+            'sender_encrypted_symmetric_key': self.sender_encrypted_symmetric_key.hex() if self.sender_encrypted_symmetric_key else '',
         }
 
     def calculate_hash(self):
