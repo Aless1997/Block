@@ -6,7 +6,7 @@
 <!-- Hero Section -->
 <div class="hero-section position-relative overflow-hidden">
     <div class="container py-5">
-        <div class="row align-items-center min-vh-100">
+        <div class="row align-items-center min-vh-60">
             <div class="col-lg-6 text-center text-lg-start">
                 <h1 class="display-3 fw-bold mb-4">
                     <div class="logo-container d-inline-flex align-items-center">
@@ -36,9 +36,9 @@
                     </a>
                 </div>
             </div>
-            <div class="col-lg-6 d-none d-lg-block">
+            <div class="col-lg-6"> <!-- Rimosso d-none d-lg-block per mostrare su tutti i dispositivi -->
                 <div class="position-relative">
-                    <!-- In the tech-grid section -->
+                    <!-- Tech grid section -->
                     <div class="tech-grid">
                         <div class="tech-item" style="--delay: 0s;">
                             <i class="fas fa-cube fa-3x text-primary"></i>
@@ -113,9 +113,9 @@
 
 <style>
     .hero-section {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        background: linear-gradient(80deg, #f8f9fa 0%, #e9ecef 100%);
         color: #212529;
-        min-height: 100vh;
+        min-height: 60vh;
         position: relative;
     }
 
@@ -159,21 +159,35 @@
     .tech-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 2rem;
-        padding: 2rem;
+        gap: 1rem;
+        padding: 1.5rem;
     }
 
     .tech-item {
         background: rgba(255, 255, 255, 0.9);
         border: 1px solid rgba(0, 0, 0, 0.1);
         border-radius: 1rem;
-        padding: 2rem;
+        padding: 1.5rem;
         text-align: center;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
         transform: translateY(20px);
         opacity: 0;
         animation: fadeInUp 0.5s ease forwards;
         animation-delay: var(--delay);
+        transition: all 0.3s ease;
+    }
+
+    .tech-item:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+    }
+
+    .tech-item i {
+        transition: transform 0.3s ease;
+    }
+
+    .tech-item:hover i {
+        transform: scale(1.2);
     }
 
     .tech-item span {
@@ -181,6 +195,26 @@
         margin-top: 1rem;
         font-weight: 500;
         color: #495057;
+    }
+
+    /* Media queries per la responsività */
+    @media (max-width: 991.98px) {
+        .tech-grid {
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        .tech-grid {
+            grid-template-columns: 1fr; /* Una colonna su schermi molto piccoli */
+            gap: 1rem;
+            padding: 1rem;
+        }
+        
+        .tech-item {
+            padding: 1.25rem;
+        }
     }
 
     .feature-card {

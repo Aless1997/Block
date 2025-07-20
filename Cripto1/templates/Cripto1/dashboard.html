@@ -63,43 +63,64 @@
     <div class="row">
         <!-- Recent Transactions -->
         <div class="col-md-8 col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h4 class="mb-0">Recent Transactions</h4>
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h4 class="mb-0 text-primary">Recent Transactions</h4>
                 </div>
-                <div class="card-body p-0"> <!-- Rimuovi padding per un look più mobile-friendly -->
+                <div class="card-body p-0">
                     {% if transactions %}
-                        <div class="list-group list-group-flush">
-                            {% for tx in transactions %}
-                                <a href="{% url 'Cripto1:transaction_details' tx.id %}" class="list-group-item list-group-item-action swipe-container">
-                                    <div class="d-flex w-100 justify-content-between align-items-center">
-                                        <div>
-                                            <h5 class="mb-1">
-                                                {% if tx.type == 'text' %}
-                                                    <i class="fas fa-envelope"></i>
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Tipo</th>
+                                        <th>Hash Transazione</th>
+                                        <th>Hash Blocco</th>
+                                        <th>Data</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for tx in transactions %}
+                                        <tr class="align-middle">
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="icon-wrapper rounded-circle bg-light p-2 me-2">
+                                                        {% if tx.type == 'text' %}
+                                                            <i class="fas fa-envelope text-primary"></i>
+                                                        {% else %}
+                                                            <i class="fas fa-file text-info"></i>
+                                                        {% endif %}
+                                                    </div>
+                                                    <span>{{ tx.type|title }}</span>
+                                                </div>
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 150px;">
+                                                <span class="badge bg-light text-dark">{{ tx.transaction_hash|slice:":10" }}...</span>
+                                            </td>
+                                            <td class="text-truncate" style="max-width: 150px;">
+                                                {% if tx.block %}
+                                                    <span class="badge bg-light text-dark">{{ tx.block.hash|slice:":10" }}...</span>
                                                 {% else %}
-                                                    <i class="fas fa-file"></i>
+                                                    <span class="badge bg-warning text-dark">Pending</span>
                                                 {% endif %}
-                                                {{ tx.type|title }}
-                                            </h5>
-                                            <small class="text-muted">{{ tx.timestamp_datetime|date:"d/m/Y H:i" }}</small>
-                                        </div>
-                                        <i class="fas fa-chevron-right text-muted"></i>
-                                    </div>
-                                    <!-- Swipe actions -->
-                                    <div class="swipe-actions">
-                                        <div class="swipe-action archive">
-                                            <i class="fas fa-archive"></i>
-                                        </div>
-                                        <div class="swipe-action delete">
-                                            <i class="fas fa-trash"></i>
-                                        </div>
-                                    </div>
-                                </a>
-                            {% endfor %}
+                                            </td>
+                                            <td><small>{{ tx.timestamp_datetime|date:"d/m/Y H:i" }}</small></td>
+                                            <td class="text-end">
+                                                <a href="{% url 'Cripto1:transaction_details' tx.id %}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
                         </div>
                     {% else %}
-                        <p class="text-muted p-3">No transactions found.</p>
+                        <div class="text-center py-4">
+                            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">Non hai ancora transazioni.</p>
+                        </div>
                     {% endif %}
                 </div>
             </div>

@@ -67,12 +67,21 @@ urlpatterns = [
     # Password change
     path('password_change/', auth_views.PasswordChangeView.as_view(template_name='registration/password_change_form.html', success_url=reverse_lazy('Cripto1:password_change_done')), name='password_change'),
     path('password_change/done/', auth_views.PasswordChangeDoneView.as_view(template_name='registration/password_change_done.html'), name='password_change_done'),
-
+    
+    # Personal Documents URLs
+    path('documents/', views.personal_documents, name='personal_documents'),
+    path('documents/upload/', views.upload_personal_document, name='upload_personal_document'),
+    path('documents/<int:document_id>/download/', views.download_personal_document, name='download_personal_document'),
+    path('documents/<int:document_id>/view/', views.view_personal_document, name='view_personal_document'),  # Nuova URL
+    path('documents/<int:document_id>/delete/', views.delete_personal_document, name='delete_personal_document'),
+    path('documents/<int:document_id>/send/', views.send_document_as_transaction, name='send_document_as_transaction'),
+    path('transactions/<int:transaction_id>/add-to-personal-documents/', views.add_transaction_file_to_personal_documents, name='add_transaction_file_to_personal_documents'),
     # Django admin (deve essere l'ULTIMA e fuori dal blocco app)
     path('admin/', admin.site.urls),
     # Aggiungi questa riga per il pattern backup_management
     path('admdashboard/backup/', views.backup_management, name='backup_management'),
-    # Aggiungi questa riga alle URL esistenti
+    # Aggiungi questa riga alle URL patterns esistenti
+    path('transactions/<int:transaction_id>/view-file/', views.view_transaction_file, name='view_transaction_file'),
     path('admdashboard/backup/upload/', views.upload_backup, name='upload_backup'),
     path('admdashboard/backup/download/<str:filename>/', views.download_backup, name='download_backup'),
 ]

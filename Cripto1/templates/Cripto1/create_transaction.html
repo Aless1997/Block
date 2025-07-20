@@ -45,6 +45,13 @@
                             <small class="form-text text-muted">Leave blank for unlimited downloads. Must be a positive number.</small>
                         </div>
 
+                        <div id="shareableContent" class="mb-3" style="display: none;">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="isShareable" name="is_shareable" value="true">
+                                <label class="form-check-label" for="isShareable">Rendi questo file condivisibile</label>
+                                <small class="form-text text-muted">Se selezionato, il destinatario potrà aggiungere questo file ai suoi documenti personali.</small>
+                            </div>
+                        </div>
                         <div class="mb-3 form-check">
                             <input type="checkbox" class="form-check-input" id="isEncrypted" name="is_encrypted" value="true">
                             <label class="form-check-label" for="isEncrypted">Encrypt this transaction</label>
@@ -75,12 +82,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const fileField = document.getElementById('file');
     const maxDownloadsContent = document.getElementById('maxDownloadsContent');
     const maxDownloadsField = document.getElementById('maxDownloads');
+    const shareableContent = document.getElementById('shareableContent');  // Aggiungi questa riga
 
     transactionType.addEventListener('change', function() {
         if (this.value === 'text') {
             textContent.style.display = 'block';
             fileContent.style.display = 'none';
             maxDownloadsContent.style.display = 'none';
+            shareableContent.style.display = 'none';  // Aggiungi questa riga
             contentField.required = true;
             fileField.required = false;
             maxDownloadsField.required = false;
@@ -88,6 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
             textContent.style.display = 'none';
             fileContent.style.display = 'block';
             maxDownloadsContent.style.display = 'block';
+            shareableContent.style.display = 'block';  // Aggiungi questa riga
             contentField.required = false;
             fileField.required = true;
         }
@@ -129,4 +139,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-{% endblock %} 
+{% endblock %}

@@ -48,16 +48,28 @@
                                 </div>
                             </div>
                         </div>
-                    {% elif transaction.type == 'file' and transaction.file %}
+                    {% endif %}
+                    <!-- Modifica la sezione dei pulsanti per i file -->
+                    {% if transaction.type == 'file' and transaction.file %}
                         <div class="mb-3">
                             <h5>File Information</h5>
                             <div class="card">
                                 <div class="card-body">
                                     <p><strong>File Name:</strong> {{ transaction.file.name|slice:"19:" }}</p>
                                     {% if is_sender or is_receiver %}
-                                        <a href="{% url 'Cripto1:download_file' transaction.id %}" class="btn btn-primary">
-                                            Download File
-                                        </a>
+                                        <div class="btn-group">
+                                            <a href="{% url 'Cripto1:download_file' transaction.id %}" class="btn btn-primary">
+                                                <i class="fas fa-download"></i> Download File
+                                            </a>
+                                            <a href="{% url 'Cripto1:view_transaction_file' transaction.id %}" class="btn btn-info">
+                                                <i class="fas fa-eye"></i> Visualizza File
+                                            </a>
+                                            {% if is_receiver and transaction.is_shareable %}
+                                                <a href="{% url 'Cripto1:add_transaction_file_to_personal_documents' transaction.id %}" class="btn btn-success">
+                                                    <i class="fas fa-plus"></i> Aggiungi ai miei documenti
+                                                </a>
+                                            {% endif %}
+                                        </div>
                                     {% endif %}
                                 </div>
                             </div>
@@ -133,4 +145,4 @@ function decryptMessage() {
 }
 </script>
 {% endif %}
-{% endblock %} 
+{% endblock %}

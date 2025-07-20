@@ -65,16 +65,18 @@ class RoleAdmin(admin.ModelAdmin, ExportCsvMixin):
     list_display = ['name', 'description', 'is_active', 'is_system_role', 'created_at', 'updated_at']
     list_filter = ['is_active', 'is_system_role', 'created_at', 'updated_at']
     search_fields = ['name', 'description']
-    filter_horizontal = ['permissions']
+    # Rimuovi questa riga:
+    # filter_horizontal = ['permissions']
     readonly_fields = ['created_at', 'updated_at']
     
     fieldsets = (
         ('Informazioni Base', {
             'fields': ('name', 'description', 'is_active', 'is_system_role')
         }),
-        ('Permessi', {
-            'fields': ('permissions',)
-        }),
+        # Rimuovi questa sezione:
+        # ('Permessi', {
+        #     'fields': ('permissions',)
+        # }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)

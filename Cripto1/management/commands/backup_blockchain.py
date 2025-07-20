@@ -106,9 +106,8 @@ class Command(BaseCommand):
             for root, dirs, files in os.walk(backup_dir):
                 for file in files:
                     file_path = os.path.join(root, file)
-                    # Usa un percorso relativo alla directory di backup, non alla directory di output
-                    arcname = os.path.relpath(file_path, backup_dir)
-                    zipf.write(file_path, arcname)
+                    # Archivia i file direttamente nella radice del ZIP, non in sottodirectory
+                    zipf.write(file_path, os.path.basename(file_path))
         
         self.stdout.write(self.style.SUCCESS(f'Backup completato e salvato in {zip_filename}'))
         

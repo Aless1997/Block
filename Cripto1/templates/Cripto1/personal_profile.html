@@ -40,12 +40,158 @@
     .action-cards {
         display: grid;
         grid-template-columns: 1fr;
-        gap: 1rem;
+        gap: 1.5rem;
     }
     @media (min-width: 768px) {
         .action-cards {
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
         }
+    }
+    
+    /* Nuovi stili per le card moderne */
+    .modern-card {
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 10px 20px rgba(99, 102, 241, 0.1);
+        overflow: hidden;
+        position: relative;
+        z-index: 1;
+        transition: all 0.3s ease;
+    }
+    
+    .modern-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(79, 70, 229, 0.05) 100%);
+        z-index: -1;
+        transition: opacity 0.3s ease;
+        opacity: 0;
+    }
+    
+    .modern-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 15px 30px rgba(99, 102, 241, 0.2);
+    }
+    
+    .modern-card:hover::before {
+        opacity: 1;
+    }
+    
+    .card-icon {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        color: var(--primary-color);
+        transition: all 0.3s ease;
+        position: relative;
+    }
+    
+    .modern-card:hover .card-icon {
+        transform: scale(1.2);
+    }
+    
+    .floating-emoji {
+        position: absolute;
+        opacity: 0;
+        transition: all 0.5s ease;
+        font-size: 1.2rem;
+    }
+    
+    .modern-card:hover .floating-emoji {
+        animation: float-up 2s ease infinite;
+        opacity: 1;
+    }
+    
+    .modern-card:hover .emoji-1 {
+        animation-delay: 0s;
+    }
+    
+    .modern-card:hover .emoji-2 {
+        animation-delay: 0.3s;
+    }
+    
+    .modern-card:hover .emoji-3 {
+        animation-delay: 0.6s;
+    }
+    
+    @keyframes float-up {
+        0% {
+            transform: translate(0, 0) rotate(0deg);
+            opacity: 0;
+        }
+        20% {
+            opacity: 1;
+        }
+        80% {
+            opacity: 0.8;
+        }
+        100% {
+            transform: translate(var(--x, -20px), var(--y, -50px)) rotate(var(--r, 10deg));
+            opacity: 0;
+        }
+    }
+    
+    .modern-card-body {
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        z-index: 2;
+        position: relative;
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(5px);
+        height: 100%;
+    }
+    
+    .modern-card-title {
+        font-weight: 700;
+        margin-bottom: 1rem;
+        color: var(--text-primary);
+        font-size: 1.25rem;
+    }
+    
+    .modern-card-text {
+        color: var(--text-secondary);
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+    
+    .modern-btn {
+        border-radius: 12px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        z-index: 1;
+        margin-top: auto;
+    }
+    
+    .modern-btn::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.2);
+        z-index: -1;
+        transform: scaleX(0);
+        transform-origin: right;
+        transition: transform 0.5s ease;
+    }
+    
+    .modern-btn:hover::after {
+        transform: scaleX(1);
+        transform-origin: left;
     }
 </style>
 
@@ -107,31 +253,64 @@
 
     <div class="action-cards">
         <!-- Modifica Profilo Card -->
-        <div class="card text-center mb-3">
-            <div class="card-body d-flex flex-column">
-                <h5 class="card-title">Modifica Profilo</h5>
-                <p class="card-text">Aggiorna le tue informazioni personali e le impostazioni del profilo.</p>
-                <a href="{% url 'Cripto1:edit_profile' %}" class="btn btn-secondary mt-auto">Modifica Profilo</a>
+        <div class="card modern-card text-center mb-3">
+            <div class="modern-card-body">
+                <div class="card-icon">
+                    <i class="fas fa-user-edit"></i>
+                    <span class="floating-emoji emoji-1" style="--x: -30px; --y: -40px; --r: -15deg;">✏️</span>
+                    <span class="floating-emoji emoji-2" style="--x: 10px; --y: -50px; --r: 10deg;">👤</span>
+                    <span class="floating-emoji emoji-3" style="--x: -10px; --y: -30px; --r: -5deg;">🔄</span>
+                </div>
+                <h5 class="modern-card-title">Modifica Profilo</h5>
+                <p class="modern-card-text">Aggiorna le tue informazioni personali e le impostazioni del profilo.</p>
+                <a href="{% url 'Cripto1:edit_profile' %}" class="btn btn-secondary modern-btn mt-auto">Modifica Profilo</a>
             </div>
         </div>
-
+    
         <!-- Admin Dashboard Card (Conditional) -->
         {% if user.is_staff or user.is_superuser %}
-        <div class="card text-center mb-3">
-            <div class="card-body d-flex flex-column">
-                <h5 class="card-title">Admin Dashboard</h5>
-                <p class="card-text">Accedi al pannello di amministrazione per gestire gli utenti e il sistema.</p>
-                <a href="{% url 'Cripto1:admin_dashboard' %}" class="btn btn-info mt-auto">Admin Dashboard</a>
+        <div class="card modern-card text-center mb-3">
+            <div class="modern-card-body">
+                <div class="card-icon">
+                    <i class="fas fa-shield-alt"></i>
+                    <span class="floating-emoji emoji-1" style="--x: -25px; --y: -45px; --r: 15deg;">⚙️</span>
+                    <span class="floating-emoji emoji-2" style="--x: 15px; --y: -40px; --r: -10deg;">🔐</span>
+                    <span class="floating-emoji emoji-3" style="--x: -5px; --y: -35px; --r: 5deg;">👑</span>
+                </div>
+                <h5 class="modern-card-title">Admin Dashboard</h5>
+                <p class="modern-card-text">Accedi al pannello di amministrazione per gestire gli utenti e il sistema.</p>
+                <a href="{% url 'Cripto1:admin_dashboard' %}" class="btn btn-info modern-btn mt-auto">Admin Dashboard</a>
             </div>
         </div>
         {% endif %}
-
+    
         <!-- Visualizza tutti i movimenti Card -->
-        <div class="card text-center mb-3">
-            <div class="card-body d-flex flex-column">
-                <h5 class="card-title">Visualizza tutti i movimenti</h5>
-                <p class="card-text">Esamina la cronologia completa delle tue transazioni e movimenti.</p>
-                <a href="{% url 'Cripto1:all_transactions' %}" class="btn btn-primary mt-auto">Visualizza tutti i movimenti</a>
+        <div class="card modern-card text-center mb-3">
+            <div class="modern-card-body">
+                <div class="card-icon">
+                    <i class="fas fa-exchange-alt"></i>
+                    <span class="floating-emoji emoji-1" style="--x: -20px; --y: -40px; --r: -10deg;">📊</span>
+                    <span class="floating-emoji emoji-2" style="--x: 20px; --y: -45px; --r: 15deg;">💸</span>
+                    <span class="floating-emoji emoji-3" style="--x: 0px; --y: -50px; --r: 0deg;">📈</span>
+                </div>
+                <h5 class="modern-card-title">Visualizza tutti i movimenti</h5>
+                <p class="modern-card-text">Esamina la cronologia completa delle tue transazioni e movimenti.</p>
+                <a href="{% url 'Cripto1:all_transactions' %}" class="btn btn-primary modern-btn mt-auto">Visualizza tutti i movimenti</a>
+            </div>
+        </div>
+        
+        <!-- Documenti Personali Card (NUOVA) -->
+        <div class="card modern-card text-center mb-3">
+            <div class="modern-card-body">
+                <div class="card-icon">
+                    <i class="fas fa-file-alt"></i>
+                    <span class="floating-emoji emoji-1" style="--x: -25px; --y: -40px; --r: -10deg;">📄</span>
+                    <span class="floating-emoji emoji-2" style="--x: 15px; --y: -45px; --r: 15deg;">🔒</span>
+                    <span class="floating-emoji emoji-3" style="--x: -5px; --y: -35px; --r: 5deg;">📁</span>
+                </div>
+                <h5 class="modern-card-title">Documenti Personali</h5>
+                <p class="modern-card-text">Gestisci i tuoi documenti personali con opzioni di crittografia e condivisione.</p>
+                <a href="{% url 'Cripto1:personal_documents' %}" class="btn btn-success modern-btn mt-auto">Gestisci Documenti</a>
             </div>
         </div>
     </div>
@@ -140,4 +319,30 @@
 
 {% block extra_js %}
 {{ block.super }}
+<script>
+    // Funzione per animare le emoji fluttuanti
+    document.addEventListener('DOMContentLoaded', function() {
+        const cards = document.querySelectorAll('.modern-card');
+        
+        cards.forEach(card => {
+            card.addEventListener('mousemove', function(e) {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                const emojis = card.querySelectorAll('.floating-emoji');
+                emojis.forEach((emoji, index) => {
+                    // Calcola una posizione leggermente diversa per ogni emoji
+                    const offsetX = (x / rect.width - 0.5) * 20;
+                    const offsetY = (y / rect.height - 0.5) * 20;
+                    
+                    // Applica un offset diverso per ogni emoji
+                    emoji.style.setProperty('--x', `${-20 + offsetX + (index * 10)}px`);
+                    emoji.style.setProperty('--y', `${-40 - offsetY - (index * 5)}px`);
+                    emoji.style.setProperty('--r', `${(index * 10) - 10 + (offsetX / 2)}deg`);
+                });
+            });
+        });
+    });
+</script>
 {% endblock %}
