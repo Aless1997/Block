@@ -184,21 +184,77 @@ class SecurityMiddleware(MiddlewareMixin):
             '/favicon.ico',
         ]
     
+    # Aggiungi questa classe al file middleware.py esistente
+    
+class FileUploadSecurityMiddleware(MiddlewareMixin):
+
+
+    def __init__(self, get_response):
+        super().__init__(get_response)
+        self.allowed_extensions = [
+            'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv', 'jpg', 'jpeg', 'png', 'gif'
+        ]
+        self.max_file_size = 10 * 1024 * 1024  # 10MB
+
     def process_request(self, request):
-        # Controlla se il percorso è esente
-        if any(request.path.startswith(path) for path in self.exempt_paths):
-            return None
-        
-        # Gestione tentativi di login falliti
-        if request.path == '/login/' and request.method == 'POST':
-            self.handle_login_attempt(request)
-        
-        # Controllo account bloccati per utenti autenticati
-        if hasattr(request, 'user') and request.user.is_authenticated:
-            self.check_user_status(request)
+        if request.method == 'POST' and request.FILES:
+            for field_name, file in request.FILES.items():
+                # 1. Controllo estensione
+                file_extension = file.name.split('.')[-1].lower()
+                if file_extension not in self.allowed_extensions:
+                    messages.error(request, f'Estensione file non consentita: {file.name}')
+                    return redirect(request.path)
+                
+                # 2. Controllo dimensione
+                if file.size > self.max_file_size:
+                    messages.error(request, f'File troppo grande: {file.name}')
+                    return redirect(request.path)
+                
+                # 3. Scansione antivirus (se disponibile)
+                try:
+                    from django_clamd import clamd
+                    from tempfile import NamedTemporaryFile
+                    import os
+                    
+                    with NamedTemporaryFile(delete=False) as temp_file:
+                        for chunk in file.chunks():
+                            temp_file.write(chunk)
+                        temp_file_path = temp_file.name
+                    
+                    try:
+                        scanner = clamd.ClamdUnixSocket()
+                        scan_result = scanner.scan_file(temp_file_path)
+                        
+                        if scan_result and temp_file_path in scan_result and scan_result[temp_file_path][0] == 'FOUND':
+                            os.unlink(temp_file_path)
+                            virus_name = scan_result[temp_file_path][1]
+                            
+                            # Registra l'evento di sicurezza
+                            AuditLog.log_action(
+                                user=request.user if request.user.is_authenticated else None,
+                                action_type='SECURITY_EVENT',
+                                description=f'Tentativo di caricamento file infetto: {file.name}',
+                                severity='HIGH',
+                                additional_data={'virus_detected': virus_name},
+                                success=False,
+                                error_message=f'Virus rilevato: {virus_name}'
+                            )
+                            
+                            messages.error(request, f'File {file.name} contiene codice malevolo e non può essere caricato.')
+                            return redirect(request.path)
+                        
+                        # Riavvolgi il file per l'uso successivo
+                        file.seek(0)
+                        os.unlink(temp_file_path)
+                        
+                    except Exception as e:
+                        os.unlink(temp_file_path)
+                        print(f"Errore durante la scansione antivirus: {str(e)}")
+                except ImportError:
+                    print("django-clamd non è installato. La scansione antivirus è disabilitata.")
         
         return None
-    
+
     def handle_login_attempt(self, request):
         """Gestisce i tentativi di login e il blocco account"""
         username = request.POST.get('username')
@@ -243,7 +299,7 @@ class SecurityMiddleware(MiddlewareMixin):
                 success=False,
                 error_message='Username non trovato'
             )
-    
+
     def check_user_status(self, request):
         """Controlla lo stato dell'utente autenticato"""
         try:
@@ -271,7 +327,7 @@ class SecurityMiddleware(MiddlewareMixin):
         except UserProfile.DoesNotExist:
             # Se non esiste un profilo, creane uno
             UserProfile.objects.create(user=request.user)
-    
+
     def get_client_ip(self, request):
         """Ottiene l'IP reale del client anche dietro proxy"""
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
@@ -279,4 +335,4 @@ class SecurityMiddleware(MiddlewareMixin):
             ip = x_forwarded_for.split(',')[0]
         else:
             ip = request.META.get('REMOTE_ADDR')
-        return ip 
+        return ip

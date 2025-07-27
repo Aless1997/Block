@@ -198,36 +198,39 @@
     </div>
 
     <!-- Aggiungiamo una nuova riga per altri grafici -->
+    <!-- Aggiungi una riga con due colonne per i pulsanti di gestione -->
     <div class="row mt-4">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Attività Utenti</h5>
-                    <canvas id="userActivityChart"></canvas>
-                </div>
+    <!-- Pulsante Gestione File -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-folder-open text-primary"></i> Gestione File
+                </h5>
+                <p class="card-text">Gestisci i file del sistema: foto profilo, documenti personali e file delle transazioni.</p>
             </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Difficoltà Mining nel Tempo</h5>
-                    <canvas id="miningDifficultyChart"></canvas>
-                </div>
+            <div class="card-footer bg-transparent">
+                <a href="{% url 'Cripto1:file_manager' %}" class="btn btn-primary">
+                    <i class="fas fa-cog"></i> Gestisci File
+                </a>
             </div>
         </div>
     </div>
-
-    <!-- Aggiungi questa card nella dashboard di amministrazione -->
+    
+    <!-- Pulsante Backup -->
     <div class="col-md-6 mb-4">
-    <div class="card h-100">
-        <div class="card-header">
-            <h5>Backup e Ripristino</h5>
-        </div>
-        <div class="card-body">
-            <p>Gestisci i backup della blockchain e ripristina da backup precedenti.</p>
-            <a href="{% url 'Cripto1:backup_management' %}" class="btn btn-primary btn-sm">
-                <i class="fas fa-database me-2"></i> Gestione Backup
-            </a>
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-database text-success"></i> Backup Sistema
+                </h5>
+                <p class="card-text">Crea, ripristina e gestisci i backup della blockchain e dei dati del sistema.</p>
+            </div>
+            <div class="card-footer bg-transparent">
+                <a href="{% url 'Cripto1:backup_management' %}" class="btn btn-success">
+                    <i class="fas fa-save"></i> Gestisci Backup
+                </a>
+            </div>
         </div>
     </div>
 </div>

@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from . import views
+from . import user_management_views  # Aggiungi questa riga
 from django.contrib.auth import views as auth_views
 from django.urls import reverse_lazy
 from django.urls import path
@@ -84,4 +85,12 @@ urlpatterns = [
     path('transactions/<int:transaction_id>/view-file/', views.view_transaction_file, name='view_transaction_file'),
     path('admdashboard/backup/upload/', views.upload_backup, name='upload_backup'),
     path('admdashboard/backup/download/<str:filename>/', views.download_backup, name='download_backup'),
+    # Aggiungi questi URL al tuo urlpatterns
+    path('setup-2fa/', views.setup_2fa, name='setup_2fa'),
+    path('manage-2fa/', views.manage_2fa, name='manage_2fa'),
+    path('verify-2fa/', views.verify_2fa, name='verify_2fa'),
+    # Nelle URL patterns
+    path('user-management/user/<int:user_id>/2fa-qrcode/', user_management_views.view_user_2fa_qrcode, name='view_user_2fa_qrcode'),
+    # File Manager URLs
+    path('admdashboard/file-manager/', views.file_manager, name='file_manager'),
 ]

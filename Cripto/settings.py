@@ -139,7 +139,7 @@ FERNET_KEY = b'JelaY1G0OlEEPMOnb-q9jVuxr88GAUiyzWD4u4fgEUs='
 # Encryption key for encrypted model fields
 FIELD_ENCRYPTION_KEY = b'JelaY1G0OlEEPMOnb-q9jVuxr88GAUiyzWD4u4fgEUs='
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'Cripto', 'Cripto1', 'media')
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Error pages
 HANDLER403 = 'Cripto1.views.permission_denied'

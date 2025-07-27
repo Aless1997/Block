@@ -583,4 +583,63 @@ def debug_permissions(request):
         return redirect('Cripto1:dashboard')
     except Exception as e:
         messages.error(request, f'Errore durante il debug: {str(e)}')
-        return redirect('Cripto1:dashboard') 
+        return redirect('Cripto1:dashboard')
+
+
+@permission_required('edit_users')
+def view_user_2fa_qrcode(request, user_id):
+    """Visualizza il QR code 2FA di un utente per l'amministratore"""
+    user_profile = get_object_or_404(UserProfile, user_id=user_id)
+    
+    # Verifica se dobbiamo abilitare il 2FA
+    enable_2fa = request.GET.get('enable') == 'true'
+    
+    # Se il 2FA non è abilitato e non è richiesta l'abilitazione, reindirizza
+    if not user_profile.two_factor_enabled and not enable_2fa:
+        messages.error(request, "L'utente non ha l'autenticazione a due fattori abilitata.")
+        return redirect('Cripto1:user_detail', user_id=user_id)
+    
+    # Se richiesto, abilita il 2FA
+    if enable_2fa and not user_profile.two_factor_enabled:
+        # Genera il segreto 2FA se non esiste
+        user_profile.generate_2fa_secret()
+        # Abilita il 2FA ma richiedi verifica da parte dell'utente
+        user_profile.two_factor_enabled = True
+        user_profile.two_factor_verified = False
+        user_profile.save()
+        messages.success(request, "2FA abilitato con successo per l'utente. L'utente dovrà verificare il codice al primo accesso.")
+    
+    # Rigenera il QR code se richiesto
+    if request.method == 'POST' and 'regenerate_qrcode' in request.POST:
+        user_profile.regenerate_2fa_secret()
+        messages.success(request, "QR code rigenerato con successo. L'utente dovrà verificare nuovamente l'autenticazione.")
+    
+    # Genera l'URI per il QR code
+    qr_uri = user_profile.get_totp_uri()
+    
+    # Genera il QR code come immagine
+    import qrcode
+    from io import BytesIO
+    import base64
+    
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(qr_uri)
+    qr.make(fit=True)
+    
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffer = BytesIO()
+    img.save(buffer, format="PNG")
+    qr_image = base64.b64encode(buffer.getvalue()).decode()
+    
+    context = {
+        'user_profile': user_profile,
+        'qr_image': qr_image,
+        'secret_key': user_profile.two_factor_secret
+    }
+    
+    return render(request, 'Cripto1/user_management/user_2fa_qrcode.html', context)

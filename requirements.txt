@@ -20,3 +20,7 @@ django-encrypted-model-fields>=0.6.5  # Per i campi crittografati nel modello
 gunicorn
 dj_database_url
 psycopg2
+
+# Autenticazione a due fattori
+pyotp>=2.8.0
+qrcode>=7.4.2

@@ -35,6 +35,10 @@ from django.urls import reverse
 from datetime import datetime, timedelta
 from django.core.exceptions import PermissionDenied
 from django.views.decorators.http import require_POST
+import pyotp
+import qrcode
+import io
+import re
 
 cipher_suite = Fernet(settings.FERNET_KEY)
 
@@ -66,8 +70,18 @@ def register(request):
         user_profile = UserProfile.objects.create(user=user)
         user_profile.generate_key_pair(password=private_key_password.encode())  # Usa la password scelta
         
-        messages.success(request, 'Registrazione completata con successo')
-        return redirect('Cripto1:login')
+        # Genera un segreto 2FA per l'utente
+        user_profile.generate_2fa_secret()
+        
+        # Autentica l'utente
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            messages.success(request, 'Registrazione completata con successo. Configura ora l\'autenticazione a due fattori.')
+            return redirect('Cripto1:setup_2fa')  # Reindirizza alla configurazione 2FA
+        else:
+            messages.success(request, 'Registrazione completata con successo')
+            return redirect('Cripto1:login')
         
     return render(request, 'Cripto1/register.html')
 
@@ -98,18 +112,29 @@ def login_view(request):
         
         if user is not None:
             # Login riuscito
-            login(request, user)
-            
-            # Resetta i tentativi di login e aggiorna le informazioni
             try:
                 user_profile = UserProfile.objects.get(user=user)
+                
+                # Verifica se l'utente ha 2FA abilitato
+                if user_profile.two_factor_enabled:
+                    # Salva l'ID utente in sessione e reindirizza alla verifica 2FA
+                    request.session['user_id'] = user.id
+                    return redirect('Cripto1:verify_2fa')
+                
+                # Se non ha 2FA, procedi con il login normale
+                login(request, user)
+                
+                # Resetta i tentativi di login e aggiorna le informazioni
                 user_profile.reset_login_attempts()
                 user_profile.update_last_login(request.META.get('REMOTE_ADDR'))
+                
+                messages.success(request, "Benvenuto! Hai effettuato l'accesso con successo.", extra_tags='welcome_toast')
+                return redirect('Cripto1:dashboard')
             except UserProfile.DoesNotExist:
-                pass
-            
-            messages.success(request, "Benvenuto! Hai effettuato l'accesso con successo.", extra_tags='welcome_toast')
-            return redirect('Cripto1:dashboard')
+                # Se non esiste un profilo, procedi con il login normale
+                login(request, user)
+                messages.success(request, "Benvenuto! Hai effettuato l'accesso con successo.", extra_tags='welcome_toast')
+                return redirect('Cripto1:dashboard')
         else:
             # Login fallito
             try:
@@ -336,6 +361,8 @@ def proof_of_work(last_proof, difficulty=4):
         # Increment nonce by a random amount to make it less predictable
         nonce += random.randint(1, 1000)
 
+from django.core.exceptions import ValidationError
+
 @login_required
 @csrf_exempt
 def create_transaction(request):
@@ -345,7 +372,7 @@ def create_transaction(request):
             receiver_key = request.POST.get('receiver_key')
             content = request.POST.get('content', '')
             is_encrypted = request.POST.get('is_encrypted', 'false').lower() in ['true', 'on', '1']
-            is_shareable = request.POST.get('is_shareable', 'false').lower() in ['true', 'on', '1']  # Aggiungi questa riga
+            is_shareable = request.POST.get('is_shareable', 'false').lower() in ['true', 'on', '1']
             private_key_password = request.POST.get('private_key_password')
             max_downloads_str = request.POST.get('max_downloads')
             max_downloads = int(max_downloads_str) if max_downloads_str and max_downloads_str.isdigit() else None
@@ -411,6 +438,24 @@ def create_transaction(request):
             # Handle file upload if present
             if transaction_type == 'file' and request.FILES.get('file'):
                 file = request.FILES['file']
+                
+                # Controllo sicurezza del file
+                try:
+                    from .validators import validate_file_security
+                    validate_file_security(file)
+                except ValidationError as e:
+                    # Registra l'evento di sicurezza
+                    AuditLog.log_action(
+                        user=request.user,
+                        action_type='SECURITY_EVENT',
+                        description=f'Tentativo di caricamento file non sicuro in una transazione: {file.name}',
+                        severity='HIGH',
+                        additional_data={'error': str(e)},
+                        success=False,
+                        error_message=str(e)
+                    )
+                    return JsonResponse({'success': False, 'message': str(e)})
+                
                 file_content = file.read()
                 encrypted_symmetric_key_for_db = None
 
@@ -2387,6 +2432,71 @@ def upload_personal_document(request):
             return redirect('Cripto1:personal_documents')
         
         file = request.FILES['file']
+        
+        # 1. Controllo estensione e tipo MIME
+        allowed_extensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv']
+        file_extension = file.name.split('.')[-1].lower()
+        
+        if file_extension not in allowed_extensions:
+            messages.error(request, f'Estensione file non consentita. Estensioni permesse: {", ".join(allowed_extensions)}')
+            return redirect('Cripto1:personal_documents')
+        
+        # 2. Controllo dimensione file (max 10MB)
+        if file.size > 10 * 1024 * 1024:  # 10MB in bytes
+            messages.error(request, 'Il file è troppo grande. Dimensione massima: 10MB')
+            return redirect('Cripto1:personal_documents')
+        
+        # 3. Scansione antivirus con ClamAV
+        try:
+            from django_clamd import validators
+            # Salva temporaneamente il file per la scansione
+            from tempfile import NamedTemporaryFile
+            import os
+            
+            with NamedTemporaryFile(delete=False) as temp_file:
+                for chunk in file.chunks():
+                    temp_file.write(chunk)
+                temp_file_path = temp_file.name
+            
+            try:
+                # Esegui la scansione antivirus
+                from django_clamd import clamd
+                scanner = clamd.ClamdUnixSocket()
+                scan_result = scanner.scan_file(temp_file_path)
+                
+                # Verifica il risultato della scansione
+                if scan_result and temp_file_path in scan_result and scan_result[temp_file_path][0] == 'FOUND':
+                    os.unlink(temp_file_path)  # Elimina il file temporaneo
+                    virus_name = scan_result[temp_file_path][1]
+                    
+                    # Registra l'evento di sicurezza
+                    AuditLog.log_action(
+                        user=request.user,
+                        action_type='SECURITY_EVENT',
+                        description=f'Tentativo di caricamento file infetto: {file.name}',
+                        severity='HIGH',
+                        additional_data={'virus_detected': virus_name},
+                        success=False,
+                        error_message=f'Virus rilevato: {virus_name}'
+                    )
+                    
+                    messages.error(request, 'Il file contiene codice malevolo e non può essere caricato.')
+                    return redirect('Cripto1:personal_documents')
+                
+                os.unlink(temp_file_path)  # Elimina il file temporaneo
+                
+            except Exception as e:
+                os.unlink(temp_file_path)  # Assicurati di eliminare il file temporaneo
+                # Gestisci l'errore di scansione (opzionale: blocca il file se CLAMD_FAIL_BY_DEFAULT è True)
+                print(f"Errore durante la scansione antivirus: {str(e)}")
+                # Se vuoi bloccare il file in caso di errore di scansione, decommentare:
+                # messages.error(request, 'Impossibile verificare la sicurezza del file. Riprova più tardi.')
+                # return redirect('Cripto1:personal_documents')
+        except ImportError:
+            # Se django-clamd non è installato, registra un avviso
+            print("django-clamd non è installato. La scansione antivirus è disabilitata.")
+        
+        # Continua con il codice esistente per la lettura e la crittografia del file
         file_content = file.read()
         user_profile = UserProfile.objects.get(user=request.user)
         
@@ -2782,3 +2892,337 @@ def add_transaction_file_to_personal_documents(request, transaction_id):
         except Exception as e:
             messages.error(request, f'Errore durante l\'aggiunta del file ai documenti personali: {str(e)}')
             return redirect('Cripto1:transaction_details', transaction_id=transaction_id)
+
+@login_required
+def setup_2fa(request):
+    """Vista per la configurazione iniziale del 2FA"""
+    user_profile = UserProfile.objects.get(user=request.user)
+    
+    # Se l'utente ha già configurato 2FA, reindirizza alla pagina di gestione
+    if user_profile.two_factor_verified:
+        return redirect('Cripto1:manage_2fa')
+    
+    # Genera un nuovo segreto se non esiste
+    if not user_profile.two_factor_secret:
+        user_profile.generate_2fa_secret()
+    
+    # Genera il QR code
+    totp_uri = user_profile.get_totp_uri()
+    img = qrcode.make(totp_uri)
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    qr_code_img = base64.b64encode(buffered.getvalue()).decode()
+    
+    if request.method == 'POST':
+        verification_code = request.POST.get('verification_code')
+        if user_profile.enable_2fa(verification_code):
+            messages.success(request, 'Autenticazione a due fattori abilitata con successo!')
+            return redirect('Cripto1:dashboard')
+        else:
+            messages.error(request, 'Codice di verifica non valido. Riprova.')
+    
+    context = {
+        'qr_code_img': qr_code_img,
+        'secret_key': user_profile.two_factor_secret,
+    }
+    return render(request, 'Cripto1/setup_2fa.html', context)
+
+@login_required
+def manage_2fa(request):
+    """Vista per gestire le impostazioni 2FA"""
+    user_profile = UserProfile.objects.get(user=request.user)
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'disable':
+            user_profile.disable_2fa()
+            messages.success(request, 'Autenticazione a due fattori disabilitata.')
+        elif action == 'enable':
+            return redirect('Cripto1:setup_2fa')
+    
+    context = {
+        'two_factor_enabled': user_profile.two_factor_enabled,
+    }
+    return render(request, 'Cripto1/manage_2fa.html', context)
+
+def verify_2fa(request):
+    """Vista per verificare il codice 2FA durante il login"""
+    if 'user_id' not in request.session:
+        return redirect('Cripto1:login')
+    
+    user_id = request.session['user_id']
+    try:
+        user = User.objects.get(id=user_id)
+        user_profile = UserProfile.objects.get(user=user)
+    except (User.DoesNotExist, UserProfile.DoesNotExist):
+        return redirect('Cripto1:login')
+    
+    if request.method == 'POST':
+        verification_code = request.POST.get('verification_code')
+        
+        if user_profile.verify_2fa_code(verification_code):
+            # Completa il login
+            login(request, user)
+            
+            # Resetta i tentativi di login e aggiorna le informazioni
+            user_profile.reset_login_attempts()
+            user_profile.update_last_login(request.META.get('REMOTE_ADDR'))
+            
+            # Pulisci la sessione
+            if 'user_id' in request.session:
+                del request.session['user_id']
+            
+            messages.success(request, "Benvenuto! Hai effettuato l'accesso con successo.", extra_tags='welcome_toast')
+            return redirect('Cripto1:dashboard')
+        else:
+            messages.error(request, 'Codice di verifica non valido. Riprova.')
+    
+    return render(request, 'Cripto1/verify_2fa.html')
+
+def clean_file_path(file_path):
+    """Pulisce e normalizza il percorso del file ricevuto dal frontend"""
+    if not file_path:
+        return None
+    
+    print(f"clean_file_path - input: {file_path}")
+    print(f"clean_file_path - caratteri: {[ord(c) for c in file_path]}")
+    
+    # Decodifica le sequenze Unicode (come u005C -> \)
+    try:
+        # Gestisci le sequenze Unicode come u005C
+        file_path = file_path.encode('utf-8').decode('unicode_escape')
+        print(f"clean_file_path - dopo decodifica Unicode: {file_path}")
+    except Exception as e:
+        print(f"clean_file_path - errore nella decodifica Unicode: {e}")
+    
+    # Rimuovi caratteri non validi che potrebbero essere stati aggiunti durante la trasmissione
+    # Rimuovi caratteri non ASCII che potrebbero essere stati aggiunti erroneamente
+    original_path = file_path
+    file_path = re.sub(r'[^\x00-\x7F]+', '', file_path)
+    
+    if original_path != file_path:
+        print(f"clean_file_path - pulito: {original_path} -> {file_path}")
+    
+    # Normalizza i separatori di percorso
+    file_path = file_path.replace('\\', '/').replace('//', '/')
+    
+    # Rimuovi slash iniziali e finali
+    file_path = file_path.strip('/')
+    
+    print(f"clean_file_path - output: {file_path}")
+    return file_path
+
+@staff_member_required
+def file_manager(request):
+    """Vista per la gestione dei file di sistema"""
+    # Definizione delle categorie di file
+    categories = {
+        'profile_pics': {
+            'name': 'Foto Profilo',
+            'path': 'profile_pics',
+            'icon': 'fas fa-user-circle'
+        },
+        'personal_documents': {
+            'name': 'Documenti Personali',
+            'path': 'personal_documents',
+            'icon': 'fas fa-file-alt'
+        },
+        'transaction_files': {
+            'name': 'File Transazioni',
+            'path': 'transaction_files',
+            'icon': 'fas fa-exchange-alt'
+        }
+    }
+    
+    # Gestione del caricamento di nuovi file
+    if request.method == 'POST' and 'upload_file' in request.POST:
+        category = request.POST.get('category')
+        if category in categories:
+            files = request.FILES.getlist('files')
+            for file in files:
+                # Gestione della struttura delle cartelle
+                subfolder = request.POST.get('subfolder', '')
+                if subfolder:
+                    upload_path = os.path.join(categories[category]['path'], subfolder)
+                else:
+                    upload_path = categories[category]['path']
+                
+                # Assicurati che la directory esista
+                full_path = os.path.join(settings.MEDIA_ROOT, upload_path)
+                os.makedirs(full_path, exist_ok=True)
+                
+                # Salva il file
+                file_path = os.path.join(upload_path, file.name)
+                with open(os.path.join(settings.MEDIA_ROOT, file_path), 'wb+') as destination:
+                    for chunk in file.chunks():
+                        destination.write(chunk)
+                
+                messages.success(request, f'File {file.name} caricato con successo')
+    
+    # Gestione dell'eliminazione dei file
+    if request.method == 'POST' and 'delete_file' in request.POST:
+        file_path = request.POST.get('file_path')
+        category = request.POST.get('category')
+        
+        if file_path:
+            # Pulisci e normalizza il percorso
+            file_path = clean_file_path(file_path)
+            
+            if not file_path:
+                messages.error(request, 'Percorso del file non valido')
+                return redirect('Cripto1:file_manager')
+            
+            # Assicurati che il percorso sia relativo a MEDIA_ROOT
+            if file_path.startswith('/'):
+                file_path = file_path[1:]
+            
+            # Normalizza il percorso per gestire correttamente i separatori
+            file_path = os.path.normpath(file_path)
+            full_path = os.path.join(settings.MEDIA_ROOT, file_path)
+            
+            # Log per debug
+            print(f"Tentativo di eliminare il file: {full_path}")
+            print(f"Il file esiste: {os.path.exists(full_path)}")
+            print(f"È un file: {os.path.isfile(full_path) if os.path.exists(full_path) else 'N/A'}")
+            print(f"È una directory: {os.path.isdir(full_path) if os.path.exists(full_path) else 'N/A'}")
+            print(f"MEDIA_ROOT: {settings.MEDIA_ROOT}")
+            print(f"Percorso ricevuto originale: {request.POST.get('file_path')}")
+            print(f"Percorso pulito: {file_path}")
+            
+            try:
+                if os.path.exists(full_path):
+                    if os.path.isfile(full_path):
+                        os.remove(full_path)
+                        messages.success(request, f'File eliminato con successo')
+                    elif os.path.isdir(full_path):
+                        import shutil
+                        shutil.rmtree(full_path)
+                        messages.success(request, f'Cartella eliminata con successo')
+                    else:
+                        messages.error(request, 'Percorso non valido')
+                else:
+                    messages.error(request, f'File o cartella non trovata: {file_path}')
+                    # Aggiungi più dettagli per il debug
+                    print(f"Percorso completo non trovato: {full_path}")
+                    # Prova a listare i file nella directory padre per debug
+                    parent_dir = os.path.dirname(full_path)
+                    if os.path.exists(parent_dir):
+                        print(f"File nella directory padre {parent_dir}:")
+                        try:
+                            for item in os.listdir(parent_dir):
+                                print(f"  - {item}")
+                        except Exception as e:
+                            print(f"Errore nel listare la directory: {e}")
+            except Exception as e:
+                messages.error(request, f'Errore durante l\'eliminazione: {str(e)}')
+                print(f"Errore durante l'eliminazione: {e}")
+        else:
+            messages.error(request, 'Percorso del file non specificato')
+    
+    # Gestione della creazione di cartelle
+    if request.method == 'POST' and 'create_folder' in request.POST:
+        category = request.POST.get('category')
+        folder_name = request.POST.get('folder_name')
+        parent_folder = request.POST.get('parent_folder', '')
+        
+        if category in categories and folder_name:
+            if parent_folder:
+                new_folder_path = os.path.join(settings.MEDIA_ROOT, categories[category]['path'], parent_folder, folder_name)
+            else:
+                new_folder_path = os.path.join(settings.MEDIA_ROOT, categories[category]['path'], folder_name)
+            
+            os.makedirs(new_folder_path, exist_ok=True)
+            messages.success(request, f'Cartella {folder_name} creata con successo')
+    
+    # Raccolta dei file per categoria
+    category_files = {}
+    search_query = request.GET.get('search', '')
+    current_category = request.GET.get('category', '')
+    
+    if current_category and current_category in categories:
+        # Visualizza solo la categoria selezionata
+        categories_to_show = {current_category: categories[current_category]}
+    else:
+        # Visualizza tutte le categorie
+        categories_to_show = categories
+    
+    for category_key, category_info in categories_to_show.items():
+        category_path = os.path.join(settings.MEDIA_ROOT, category_info['path'])
+        category_files[category_key] = {'name': category_info['name'], 'icon': category_info['icon'], 'files': []}
+        
+        # Verifica se la directory esiste
+        if os.path.exists(category_path):
+            # Raccolta ricorsiva di file e cartelle
+            for root, dirs, files in os.walk(category_path):
+                # Calcola il percorso relativo rispetto a MEDIA_ROOT
+                rel_path = os.path.relpath(root, settings.MEDIA_ROOT)
+                
+                # Aggiungi le cartelle
+                for dir_name in dirs:
+                    dir_info = {
+                        'name': dir_name,
+                        'path': os.path.join(rel_path, dir_name),
+                        'is_dir': True,
+                        'size': '',
+                        'modified': datetime.fromtimestamp(os.path.getmtime(os.path.join(root, dir_name))).strftime('%d/%m/%Y %H:%M')
+                    }
+                    
+                    # Filtra in base alla ricerca
+                    if not search_query or search_query.lower() in dir_name.lower():
+                        category_files[category_key]['files'].append(dir_info)
+                
+                # Aggiungi i file
+                for file_name in files:
+                    file_path = os.path.join(root, file_name)
+                    file_size = os.path.getsize(file_path)
+                    
+                    # Debug per capire il problema del carattere speciale
+                    rel_path_debug = os.path.relpath(root, settings.MEDIA_ROOT)
+                    
+                    # Pulisci il nome del file se contiene caratteri non validi
+                    clean_file_name = re.sub(r'[^\x00-\x7F]', '', file_name)
+                    if clean_file_name != file_name:
+                        print(f"WARNING - Nome file pulito: '{file_name}' -> '{clean_file_name}'")
+                        file_name = clean_file_name
+                    
+                    file_path_debug = os.path.join(rel_path_debug, file_name)
+                    
+                    print(f"DEBUG - root: {root}")
+                    print(f"DEBUG - file_name: {file_name}")
+                    print(f"DEBUG - rel_path: {rel_path_debug}")
+                    print(f"DEBUG - file_path costruito: {file_path_debug}")
+                    print(f"DEBUG - caratteri nel file_path: {[ord(c) for c in file_path_debug]}")
+                    
+                    file_info = {
+                        'name': file_name,
+                        'path': file_path_debug,
+                        'is_dir': False,
+                        'size': format_file_size(file_size),
+                        'modified': datetime.fromtimestamp(os.path.getmtime(file_path)).strftime('%d/%m/%Y %H:%M'),
+                        'url': os.path.join(settings.MEDIA_URL, rel_path_debug, file_name)
+                    }
+                    
+                    # Filtra in base alla ricerca
+                    if not search_query or search_query.lower() in file_name.lower():
+                        category_files[category_key]['files'].append(file_info)
+    
+    context = {
+        'categories': categories,
+        'category_files': category_files,
+        'current_category': current_category,
+        'search_query': search_query
+    }
+    
+    return render(request, 'Cripto1/file_manager.html', context)
+
+def format_file_size(size_bytes):
+    """Formatta la dimensione del file in un formato leggibile"""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    elif size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+    else:
+        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
