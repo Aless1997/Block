@@ -290,7 +290,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Show welcome toast if a message with 'welcome_toast' tag exists
     {% if messages %}
         {% for message in messages %}
             {% if 'welcome_toast' in message.tags %}
@@ -299,7 +298,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     autohide: false
                 });
                 welcomeToast.show();
-                // Remove the message from the regular messages display after showing the toast
                 var successAlert = document.querySelector('.alert.alert-success');
                 if (successAlert) {
                     successAlert.remove();
@@ -308,11 +306,10 @@ document.addEventListener('DOMContentLoaded', function() {
         {% endfor %}
     {% endif %}
     
-    // Inizializzazione grafici
-    // Grafico Transazioni per Tipo
+
     const txTypeCtx = document.getElementById('transactionTypeChart').getContext('2d');
     
-    // Conteggio transazioni per tipo
+
     const textCount = {{ text_transactions_count|default:0 }};
     const fileCount = {{ file_transactions_count|default:0 }};
     
@@ -434,4 +431,5 @@ document.addEventListener('DOMContentLoaded', function() {
         100% { transform: rotateX(360deg) rotateY(360deg); }
     }
 </style>
+
 {% endblock %}

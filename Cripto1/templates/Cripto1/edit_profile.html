@@ -86,15 +86,20 @@
                                             <i class="fas fa-user fa-4x text-secondary"></i>
                                         </div>
                                     {% endif %}
-                                    <label for="id_profile_picture" class="position-absolute bottom-0 end-0 bg-white rounded-circle p-2 shadow-sm" style="cursor: pointer;">
+                                    <label for="{{ form.profile_picture.id_for_label }}" class="position-absolute bottom-0 end-0 bg-white rounded-circle p-2 shadow-sm" style="cursor: pointer;">
                                         <i class="fas fa-camera text-primary"></i>
                                     </label>
                                 </div>
                             </div>
                             <div class="col-md-9">
-                                <input type="file" class="d-none" id="id_profile_picture" name="profile_picture" accept="image/*">
+                                <!-- Rimuovi la classe d-none per rendere il campo visibile -->
+                                {{ form.profile_picture }}
                                 <p class="text-muted mb-0">Carica una nuova immagine del profilo (opzionale). Formati supportati: JPG, PNG, GIF.</p>
                                 <p class="text-muted">Dimensione massima: 5MB</p>
+                                <!-- Aggiungi un pulsante visibile per selezionare il file -->
+                                <button type="button" class="btn btn-outline-primary mt-2" onclick="document.getElementById('{{ form.profile_picture.id_for_label }}').click()">
+                                    <i class="fas fa-upload"></i> Seleziona immagine
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -168,7 +173,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Preview profile picture before upload
-    const profilePicInput = document.getElementById('id_profile_picture');
+    const profilePicInput = document.getElementById('{{ form.profile_picture.id_for_label }}');
     profilePicInput.addEventListener('change', function(e) {
         if (this.files && this.files[0]) {
             const reader = new FileReader();
@@ -190,18 +195,7 @@ document.addEventListener('DOMContentLoaded', function() {
             reader.readAsDataURL(this.files[0]);
         }
     });
-
-    // Form validation
-    const forms = document.querySelectorAll('.needs-validation');
-    Array.from(forms).forEach(form => {
-        form.addEventListener('submit', event => {
-            if (!form.checkValidity()) {
-                event.preventDefault();
-                event.stopPropagation();
-            }
-            form.classList.add('was-validated');
-        }, false);
-    });
 });
 </script>
 {% endblock %}
+

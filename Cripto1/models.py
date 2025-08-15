@@ -160,7 +160,63 @@ class UserProfile(models.Model):
     two_factor_enabled = models.BooleanField(default=False)
     two_factor_secret = EncryptedTextField(null=True, blank=True)  # Usiamo EncryptedTextField per maggiore sicurezza
     two_factor_verified = models.BooleanField(default=False)  # Per verificare se l'utente ha completato la configurazione
-
+    
+    # Nuovi campi per la gestione dello storage
+    storage_quota_bytes = models.BigIntegerField(default=5368709120)  # 5GB in bytes
+    storage_used_bytes = models.BigIntegerField(default=0)
+    
+    def get_storage_quota_gb(self):
+        """Restituisce la quota in GB"""
+        return self.storage_quota_bytes / (1024 * 1024 * 1024)
+    
+    def get_storage_used_gb(self):
+        """Restituisce lo spazio utilizzato in GB"""
+        return self.storage_used_bytes / (1024 * 1024 * 1024)
+    
+    def get_storage_percentage(self):
+        """Restituisce la percentuale di storage utilizzata"""
+        if self.storage_quota_bytes == 0:
+            return 0
+        return (self.storage_used_bytes / self.storage_quota_bytes) * 100
+    
+    def has_storage_available(self, file_size_bytes):
+        """Verifica se c'è spazio disponibile per un file"""
+        return (self.storage_used_bytes + file_size_bytes) <= self.storage_quota_bytes
+    
+    def update_storage_usage(self):
+        """Ricalcola lo spazio utilizzato dall'utente"""
+        from django.core.files.storage import default_storage
+        import os
+        
+        total_size = 0
+        
+        # Calcola dimensione documenti personali
+        for doc in self.user.personal_documents.all():
+            if doc.file and default_storage.exists(doc.file.name):
+                try:
+                    total_size += doc.file.size
+                except:
+                    pass
+        
+        # Calcola dimensione file transazioni
+        for tx in self.user.sent_transactions.all():
+            if tx.file and default_storage.exists(tx.file.name):
+                try:
+                    total_size += tx.file.size
+                except:
+                    pass
+        
+        # Calcola dimensione immagine profilo
+        if self.profile_picture and default_storage.exists(self.profile_picture.name):
+            try:
+                total_size += self.profile_picture.size
+            except:
+                pass
+        
+        self.storage_used_bytes = total_size
+        self.save(update_fields=['storage_used_bytes'])
+        return total_size
+    
     def __str__(self):
         return f"{self.user.username}'s Profile"
 
@@ -306,6 +362,12 @@ class UserProfile(models.Model):
             user_role.expires_at = expires_at
             user_role.notes = notes
             user_role.save()
+        
+        # Aggiunta: se il ruolo è Super Admin, imposta anche is_superuser
+        if role.name == 'Super Admin' and not self.user.is_superuser:
+            self.user.is_superuser = True
+            self.user.save()
+        
         return user_role
 
     def remove_role(self, role):
@@ -314,6 +376,21 @@ class UserProfile(models.Model):
             user_role = UserRole.objects.get(user=self.user, role=role)
             user_role.is_active = False
             user_role.save()
+            
+            # Aggiunta: se il ruolo è Super Admin, rimuovi anche is_superuser
+            # ma solo se non ci sono altri ruoli Super Admin attivi
+            if role.name == 'Super Admin' and self.user.is_superuser:
+                # Verifica se l'utente ha ancora altri ruoli Super Admin attivi
+                has_other_super_admin = UserRole.objects.filter(
+                    user=self.user, 
+                    role__name='Super Admin',
+                    is_active=True
+                ).exclude(id=user_role.id).exists()
+                
+                if not has_other_super_admin:
+                    self.user.is_superuser = False
+                    self.user.save()
+            
             return True
         except UserRole.DoesNotExist:
             return False

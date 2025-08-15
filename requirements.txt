@@ -24,3 +24,4 @@ psycopg2
 # Autenticazione a due fattori
 pyotp>=2.8.0
 qrcode>=7.4.2
+sentry-sdk[django]

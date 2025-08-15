@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import login, authenticate, logout
 from django.contrib import messages
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, FileResponse
 from .models import Block, Transaction, UserProfile, SmartContract, BlockchainState, AuditLog, Permission, Role, UserRole, PersonalDocument
 from django.db import transaction, models
 import hashlib
@@ -39,6 +39,8 @@ import pyotp
 import qrcode
 import io
 import re
+from .decorators import permission_required, role_required, admin_required, active_user_required, external_forbidden, user_manager_forbidden
+from .email_utils import send_welcome_email, send_transaction_notification, send_block_confirmation_emails
 
 cipher_suite = Fernet(settings.FERNET_KEY)
 
@@ -73,15 +75,27 @@ def register(request):
         # Genera un segreto 2FA per l'utente
         user_profile.generate_2fa_secret()
         
+        # Assegna il ruolo "external" all'utente
+        try:
+            external_role = Role.objects.get(name='external')
+            user_profile.assign_role(external_role)
+        except Role.DoesNotExist:
+            # Se il ruolo non esiste, log dell'errore
+            print(f"ERRORE: Ruolo 'external' non trovato durante la registrazione dell'utente {username}")
+        
+        # Invia email di benvenuto
+        email_sent = send_welcome_email(user, user_profile, request)
+        if email_sent:
+            messages.success(request, 'Registrazione completata! Controlla la tua email per i dettagli del tuo account.')
+        else:
+            messages.warning(request, 'Registrazione completata, ma si è verificato un problema nell\'invio dell\'email di benvenuto.')
+        
         # Autentica l'utente
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
-            messages.success(request, 'Registrazione completata con successo. Configura ora l\'autenticazione a due fattori.')
+            messages.success(request, 'Configura ora l\'autenticazione a due fattori.')
             return redirect('Cripto1:setup_2fa')  # Reindirizza alla configurazione 2FA
-        else:
-            messages.success(request, 'Registrazione completata con successo')
-            return redirect('Cripto1:login')
         
     return render(request, 'Cripto1/register.html')
 
@@ -322,6 +336,9 @@ def dashboard(request):
             'validity_message': message
         }
     
+    # Aggiungi questa verifica
+    is_external_user = user_profile.has_role('external')
+    
     context = {
         'user_profile': user_profile,
         'blockchain_state': blockchain_state,
@@ -336,6 +353,7 @@ def dashboard(request):
         'text_transactions_count': text_transactions_count,
         'file_transactions_count': file_transactions_count,
         'block_data': json.dumps(blocks_with_tx_count),
+        'is_external_user': is_external_user,
     }
     return render(request, 'Cripto1/dashboard.html', context)
 
@@ -364,8 +382,14 @@ def proof_of_work(last_proof, difficulty=4):
 from django.core.exceptions import ValidationError
 
 @login_required
-@csrf_exempt
+@external_forbidden
+@user_manager_forbidden
 def create_transaction(request):
+    # Verifica se l'utente ha il ruolo "external"
+    user_profile = UserProfile.objects.get(user=request.user)
+    if user_profile.has_role('external'):
+        return JsonResponse({'success': False, 'message': 'Gli utenti con ruolo "external" non possono inviare transazioni.'})
+    
     if request.method == 'POST':
         try:
             transaction_type = request.POST.get('type')
@@ -377,7 +401,6 @@ def create_transaction(request):
             max_downloads_str = request.POST.get('max_downloads')
             max_downloads = int(max_downloads_str) if max_downloads_str and max_downloads_str.isdigit() else None
             
-            user_profile = UserProfile.objects.get(user=request.user)
             receiver_profile = UserProfile.objects.filter(user_key=receiver_key).first()
             if not receiver_profile:
                 return JsonResponse({'success': False, 'message': 'Receiver not found.'})
@@ -562,6 +585,16 @@ def create_transaction(request):
                 max_downloads=max_downloads
             )
 
+            # Invia notifiche email
+            try:
+                # Email al mittente
+                send_transaction_notification(new_tx, request.user, request, direction='sent')
+                
+                # Email al destinatario
+                send_transaction_notification(new_tx, receiver, request, direction='received')
+            except Exception as e:
+                print(f"Errore nell'invio delle notifiche email per la transazione {new_tx.id}: {str(e)}")
+
             # Add to pending transactions
             pending_transactions_ids = request.session.get('pending_transactions_ids', [])
             pending_transactions_ids.append(new_tx.id)
@@ -569,7 +602,7 @@ def create_transaction(request):
 
             return JsonResponse({
                 'success': True,
-                'message': 'Transazione creata e firmata. In attesa di mining.',
+                'message': 'Transazione creata e firmata. In attesa di mining. Notifiche email inviate.',
                 'requires_mining': True,
                 'pending_count': len(pending_transactions_ids)
             })
@@ -584,6 +617,7 @@ def create_transaction(request):
     return render(request, 'Cripto1/create_transaction.html')
 
 @login_required
+@external_forbidden
 @csrf_exempt
 def mine_block(request):
     if request.method == 'POST':
@@ -634,8 +668,22 @@ def mine_block(request):
 
         # Associa le transazioni al nuovo blocco
         pending_transactions.update(block=new_block)
+        
+        # Recupera le transazioni appena associate al blocco per l'invio delle email
+        block_transactions = Transaction.objects.filter(block=new_block)
+        
+        # Invia email di CONFERMA BLOCCO a tutti gli utenti coinvolti
+        try:
+            send_block_confirmation_emails(new_block, block_transactions)
+        except Exception as e:
+            print(f"Errore nell'invio delle email di conferma blocco #{index}: {str(e)}")
 
-        return JsonResponse({'success': True, 'message': f'Blocco #{index} creato con successo con PoW! Nonce trovato: {nonce}', 'block_index': index, 'nonce': nonce})
+        return JsonResponse({
+            'success': True, 
+            'message': f'Blocco #{index} creato con successo con PoW! Nonce trovato: {nonce}. Email di conferma inviate.', 
+            'block_index': index, 
+            'nonce': nonce
+        })
     else:
         return JsonResponse({'success': False, 'message': 'Method not allowed'})
 
@@ -734,6 +782,7 @@ def landing_page_view(request):
         return render(request, 'Cripto1/landing_page.html')
 
 @login_required
+@external_forbidden
 def users_feed(request):
     users = UserProfile.objects.all().select_related('user')
     context = {
@@ -1048,6 +1097,9 @@ def edit_profile(request):
     user_profile = UserProfile.objects.get(user=request.user)
     if request.method == 'POST':
         form = UserProfileEditForm(request.POST, request.FILES, instance=user_profile)
+        print("Form is valid:", form.is_valid())
+        if not form.is_valid():
+            print("Form errors:", form.errors)
         if form.is_valid():
             form.save()
             messages.success(request, 'Profilo aggiornato con successo')
@@ -1593,6 +1645,7 @@ def security_alerts(request):
     
     return render(request, 'Cripto1/security_alerts.html', context)
 
+
 def page_not_found(request, exception):
     return render(request, 'Cripto1/404.html', {},
                     status=404)
@@ -1681,33 +1734,23 @@ def user_list(request):
     search = request.GET.get('search', '')
     status = request.GET.get('status', '')
     role_filter = request.GET.get('role', '')
+    per_page = request.GET.get('per_page', '550')  # Nuovo parametro
+    
+    # Validazione per per_page
+    try:
+        per_page = int(per_page)
+        if per_page not in [12, 24, 50, 100]:
+            per_page = 550
+    except (ValueError, TypeError):
+        per_page = 550
     
     # Query base
     users = UserProfile.objects.select_related('user').all()
     
-    # Filtri
-    if search:
-        users = users.filter(
-            Q(user__username__icontains=search) |
-            Q(user__email__icontains=search) |
-            Q(user__first_name__icontains=search) |
-            Q(user__last_name__icontains=search) |
-            Q(department__icontains=search) |
-            Q(position__icontains=search)
-        )
-    
-    if status == 'active':
-        users = users.filter(is_active=True, is_locked=False)
-    elif status == 'inactive':
-        users = users.filter(is_active=False)
-    elif status == 'locked':
-        users = users.filter(is_locked=True)
-    
-    if role_filter:
-        users = users.filter(user__user_roles__role__name=role_filter)
+    # ... existing code per i filtri ...
     
     # Paginazione
-    paginator = Paginator(users, 12)
+    paginator = Paginator(users, per_page)
     page = request.GET.get('page')
     try:
         page_obj = paginator.page(page)
@@ -1725,6 +1768,7 @@ def user_list(request):
         'status': status,
         'role_filter': role_filter,
         'roles': roles,
+        'per_page': per_page,  # Aggiungi al context
     }
     
     return render(request, 'Cripto1/user_management/user_list.html', context)
@@ -1842,8 +1886,7 @@ def create_user(request):
                 if default_role:
                     try:
                         role = Role.objects.get(name=default_role)
-                        UserRole.objects.create(
-                            user=user,
+                        user_profile.assign_role(
                             role=role,
                             assigned_by=request.user,
                             notes='Ruolo assegnato alla creazione'
@@ -2018,41 +2061,20 @@ def assign_role(request, user_id):
     try:
         role = Role.objects.get(id=role_id, is_active=True)
         
-        # Controlla se il ruolo è già assegnato e attivo
-        existing_role = UserRole.objects.filter(
-            user=user, 
-            role=role, 
-            is_active=True
-        ).first()
-        
-        if existing_role:
-            messages.error(request, f'Ruolo {role.name} già assegnato a questo utente')
-        else:
-            # Converti la data di scadenza se fornita
-            expires_date = None
-            if expires_at:
-                try:
-                    expires_date = timezone.datetime.strptime(expires_at, '%Y-%m-%d').replace(tzinfo=timezone.utc)
-                except ValueError:
-                    messages.error(request, 'Formato data non valido')
-                    return redirect('Cripto1:user_detail', user_id=user_id)
-            
-            # Crea l'assegnazione
-            user_role = UserRole.objects.create(
-                user=user,
-                role=role,
-                assigned_by=request.user,
-                expires_at=expires_date,
-                notes=notes,
-                is_active=True
-            )
-            
-            # Aggiorna il profilo utente per riflettere i cambiamenti
+        # Converti la data di scadenza se fornita
+        expires_date = None
+        if expires_at:
             try:
-                user_profile = UserProfile.objects.get(user=user)
-                user_profile.refresh_roles_cache()
-            except UserProfile.DoesNotExist:
-                pass
+                expires_date = timezone.datetime.strptime(expires_at, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+            except ValueError:
+                messages.error(request, 'Formato data non valido')
+                return redirect('Cripto1:user_detail', user_id=user_id)
+        
+        # Usa il metodo del modello UserProfile per assegnare il ruolo
+        try:
+            user_profile = UserProfile.objects.get(user=user)
+            user_role = user_profile.assign_role(role, assigned_by=request.user, expires_at=expires_date, notes=notes)
+            user_profile.refresh_roles_cache()
             
             # Log dell'azione
             AuditLog.log_action(
@@ -2072,6 +2094,8 @@ def assign_role(request, user_id):
             )
             
             messages.success(request, f'Ruolo {role.name} assegnato con successo')
+        except UserProfile.DoesNotExist:
+            messages.error(request, 'Profilo utente non trovato')
             
     except Role.DoesNotExist:
         messages.error(request, 'Ruolo non trovato o non attivo')
@@ -2432,6 +2456,15 @@ def upload_personal_document(request):
             return redirect('Cripto1:personal_documents')
         
         file = request.FILES['file']
+        print(f"DEBUG: Dimensione originale del file: {file.size} bytes")
+        
+        # Salva temporaneamente una copia del file per debug
+        with open('debug_file_copy.bin', 'wb') as debug_file:
+            for chunk in file.chunks():
+                debug_file.write(chunk)
+        
+        # Riavvolgi il file per le operazioni successive
+        file.seek(0)
         
         # 1. Controllo estensione e tipo MIME
         allowed_extensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv']
@@ -2497,7 +2530,15 @@ def upload_personal_document(request):
             print("django-clamd non è installato. La scansione antivirus è disabilitata.")
         
         # Continua con il codice esistente per la lettura e la crittografia del file
-        file_content = file.read()
+        file.seek(0)  # Reset del puntatore del file
+        file_content = file.read()  # Rileggi il contenuto
+        print(f"DEBUG: Tipo di file_content: {type(file_content)}")
+        print(f"DEBUG: Primi 20 bytes: {file_content[:20].hex() if file_content else 'VUOTO'}")
+        print(f"DEBUG: Estensione file: {file_extension}")
+        print(f"DEBUG: MIME type: {file.content_type}")
+        print(f"DEBUG: Dimensione file: {len(file_content)} bytes")
+        print(f"DEBUG: Dimensione originale: {file.size} bytes")
+        
         user_profile = UserProfile.objects.get(user=request.user)
         
         if is_encrypted:
@@ -2505,7 +2546,10 @@ def upload_personal_document(request):
                 # Genera una chiave simmetrica per la cifratura del file
                 symmetric_key = Fernet.generate_key()
                 f = Fernet(symmetric_key)
-                encrypted_file_content = f.encrypt(file_content)
+                encrypted_file_content = f.encrypt(file_content)  # Questo mantiene il formato binario
+                
+                print(f"DEBUG: Tipo di encrypted_file_content: {type(encrypted_file_content)}")
+                print(f"DEBUG: Primi 20 bytes cifrati: {encrypted_file_content[:20]}")
                 
                 # Cifra la chiave simmetrica con la chiave pubblica dell'utente
                 user_public_key = serialization.load_pem_public_key(
@@ -2522,18 +2566,20 @@ def upload_personal_document(request):
                 )
                 
                 filename = f"{uuid.uuid4().hex}.encrypted"
-                file_to_save = ContentFile(encrypted_file_content)
+                file_to_save = ContentFile(encrypted_file_content)  # ContentFile gestisce correttamente i dati binari
                 original_filename = file.name
             except Exception as e:
                 messages.error(request, f'Errore durante la cifratura del file: {str(e)}')
                 return redirect('Cripto1:personal_documents')
         else:
             filename = f"{time.time()}_{file.name}"
-            file_to_save = ContentFile(file_content)
+            file_to_save = ContentFile(file_content)  # ContentFile gestisce correttamente i dati binari
             original_filename = None
             encrypted_symmetric_key = None
         
+        print(f"DEBUG: Prima di salvare il file con default_storage")
         file_path = default_storage.save(f'personal_documents/{filename}', file_to_save)
+        print(f"DEBUG: Dopo il salvataggio, file_path: {file_path}")
         
         # Crea il documento personale
         PersonalDocument.objects.create(
@@ -2606,7 +2652,7 @@ def download_personal_document(request, document_id):
         file_path = document.file.path
         file_name = os.path.basename(file_path)
         
-        with open(file_path, 'rb') as f:
+        with open(file_path, 'rb') as f:  # Assicurati che sia 'rb' per la lettura binaria
             response = HttpResponse(f.read(), content_type='application/octet-stream')
             response['Content-Disposition'] = f'attachment; filename="{file_name}"'
             return response
@@ -2624,11 +2670,23 @@ def view_personal_document(request, document_id):
     file_extension = os.path.splitext(filename)[1].lower()
     
     # Lista delle estensioni che possono essere visualizzate nel browser
-    viewable_extensions = ['.pdf', '.txt', '.csv']
+    viewable_extensions = ['.pdf', '.txt', '.csv', '.png', '.jpg', '.jpeg', '.gif']
     
     if file_extension not in viewable_extensions:
         messages.warning(request, f'Il formato {file_extension} non può essere visualizzato direttamente. Utilizzare l\'opzione di download.')
         return redirect('Cripto1:personal_documents')
+    
+    # Determina il content type appropriato
+    if file_extension == '.pdf':
+        content_type = 'application/pdf'
+    elif file_extension == '.txt':
+        content_type = 'text/plain'
+    elif file_extension == '.csv':
+        content_type = 'text/csv'
+    elif file_extension in ['.png', '.jpg', '.jpeg', '.gif']:
+        content_type = f'image/{file_extension[1:]}'
+    else:
+        content_type = 'application/octet-stream'
     
     if document.is_encrypted:
         if request.method == 'POST':
@@ -2662,44 +2720,52 @@ def view_personal_document(request, document_id):
                 f = Fernet(symmetric_key)
                 decrypted_content = f.decrypt(encrypted_file_content)
                 
-                # Determina il content type appropriato
-                if file_extension == '.pdf':
-                    content_type = 'application/pdf'
-                elif file_extension == '.txt':
-                    content_type = 'text/plain'
-                elif file_extension == '.csv':
-                    content_type = 'text/csv'
-                else:
-                    content_type = 'application/octet-stream'
+                # Debug: stampa i primi byte per verificare che sia un PDF valido
+                print(f"DEBUG: Primi 20 bytes: {decrypted_content[:20]}")
                 
-                # Restituisci il contenuto per la visualizzazione inline
+                # Restituisci il contenuto esattamente come fa view_transaction_file
                 response = HttpResponse(decrypted_content, content_type=content_type)
                 response['Content-Disposition'] = f'inline; filename="{document.original_filename}"'
                 return response
             
             except Exception as e:
+                import traceback
+                print(f"ERROR: Errore durante la decifratura: {str(e)}")
+                print(traceback.format_exc())
                 messages.error(request, f'Errore durante la decifratura del file: {str(e)}')
                 return render(request, 'Cripto1/view_personal_document.html', {'document': document})
         else:
             return render(request, 'Cripto1/view_personal_document.html', {'document': document})
     else:
         # Se non è cifrato, procedi con la visualizzazione normale
-        file_path = document.file.path
-        
-        # Determina il content type appropriato
-        if file_extension == '.pdf':
-            content_type = 'application/pdf'
-        elif file_extension == '.txt':
-            content_type = 'text/plain'
-        elif file_extension == '.csv':
-            content_type = 'text/csv'
-        else:
-            content_type = 'application/octet-stream'
-        
-        with open(file_path, 'rb') as f:
-            response = HttpResponse(f.read(), content_type=content_type)
-            response['Content-Disposition'] = f'inline; filename="{os.path.basename(file_path)}"'
-            return response
+        try:
+            file_path = document.file.path
+            
+            # Verifica che il file esista fisicamente
+            if not os.path.exists(file_path):
+                messages.error(request, "File non trovato sul server.")
+                return redirect('Cripto1:personal_documents')
+            
+            # Leggi il file esattamente come fa view_transaction_file
+            with open(file_path, 'rb') as f:  # Assicurati che sia 'rb' per la lettura binaria
+                file_content = f.read()
+                
+                # Debug: stampa i primi byte per verificare che sia un file valido
+                print(f"DEBUG: Primi 20 bytes: {file_content[:20].hex()}")
+                print(f"DEBUG: Content-type: {content_type}")
+                print(f"DEBUG: Dimensione file: {len(file_content)} bytes")
+                
+                response = HttpResponse(file_content, content_type=content_type)
+                response['Content-Disposition'] = f'inline; filename="{os.path.basename(file_path)}"'
+                return response
+                
+        except Exception as e:
+            import traceback
+            print(f"ERROR: Errore durante la lettura del file: {str(e)}")
+            print(traceback.format_exc())
+            messages.error(request, f'Errore durante la lettura del file: {str(e)}')
+            return redirect('Cripto1:personal_documents')
+
 
 @login_required
 def delete_personal_document(request, document_id):
@@ -2715,12 +2781,16 @@ def delete_personal_document(request, document_id):
     return redirect('Cripto1:personal_documents')
 
 @login_required
+@external_forbidden
+@user_manager_forbidden
 def send_document_as_transaction(request, document_id):
     document = get_object_or_404(PersonalDocument, id=document_id, user=request.user)
     
     if request.method == 'POST':
+        # Ottieni i dati dal form
         receiver_key = request.POST.get('receiver_key')
         is_encrypted = request.POST.get('is_encrypted', 'false').lower() in ['true', 'on', '1']
+        is_shareable = True  # Imposta come condivisibile di default
         private_key_password = request.POST.get('private_key_password')
         max_downloads_str = request.POST.get('max_downloads')
         max_downloads = int(max_downloads_str) if max_downloads_str and max_downloads_str.isdigit() else None
@@ -2736,45 +2806,169 @@ def send_document_as_transaction(request, document_id):
             messages.error(request, 'Destinatario non trovato.')
             return redirect('Cripto1:personal_documents')
         
-        # Leggi il file dal documento personale
-        with default_storage.open(document.file.name, 'rb') as f:
-            file_content = f.read()
+        # Verifica se l'utente ha il ruolo "external"
+        if user_profile.has_role('external'):
+            messages.error(request, 'Gli utenti con ruolo "external" non possono inviare transazioni.')
+            return redirect('Cripto1:personal_documents')
         
-        # Se il documento è cifrato, prima decifralo
-        if document.is_encrypted:
-            try:
-                # Decifra la chiave simmetrica con la chiave privata dell'utente
-                decrypted_private_key = user_profile.decrypt_private_key(password=private_key_password.encode())
-                if not decrypted_private_key:
-                    messages.error(request, 'Password della chiave privata errata.')
-                    return redirect('Cripto1:personal_documents')
-                
-                symmetric_key = decrypted_private_key.decrypt(
-                    document.encrypted_symmetric_key,
-                    padding.OAEP(
-                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                        algorithm=hashes.SHA256(),
-                        label=None
+        try:
+            # Leggi il file dal documento personale
+            with default_storage.open(document.file.name, 'rb') as f:
+                file_content = f.read()
+            
+            # Se il documento è cifrato, prima decifralo
+            if document.is_encrypted:
+                try:
+                    # Decifra la chiave simmetrica con la chiave privata dell'utente
+                    decrypted_private_key = user_profile.decrypt_private_key(password=private_key_password.encode())
+                    if not decrypted_private_key:
+                        messages.error(request, 'Password della chiave privata errata.')
+                        return redirect('Cripto1:send_document_as_transaction', document_id=document_id)
+                    
+                    symmetric_key = decrypted_private_key.decrypt(
+                        document.encrypted_symmetric_key,
+                        padding.OAEP(
+                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                            algorithm=hashes.SHA256(),
+                            label=None
+                        )
                     )
-                )
-                
-                # Decifra il contenuto del file
-                f = Fernet(symmetric_key)
-                file_content = f.decrypt(file_content)
-                
-                # Usa il nome originale del file
-                file_name = document.original_filename
-            except Exception as e:
-                messages.error(request, f'Errore durante la decifratura del documento: {str(e)}')
-                return redirect('Cripto1:personal_documents')
-        else:
-            file_name = os.path.basename(document.file.name)
-        
-        # Reindirizza alla pagina di creazione transazione con i dati precompilati
-        return redirect('Cripto1:create_transaction_from_document', document_id=document.id)
+                    
+                    # Decifra il contenuto del file
+                    f = Fernet(symmetric_key)
+                    file_content = f.decrypt(file_content)
+                    
+                    # Usa il nome originale del file
+                    original_filename = document.original_filename
+                except Exception as e:
+                    messages.error(request, f'Errore durante la decifratura del documento: {str(e)}')
+                    return redirect('Cripto1:send_document_as_transaction', document_id=document_id)
+            else:
+                original_filename = os.path.basename(document.file.name)
+
+            # Salva la chiave pubblica del mittente
+            sender_public_key = user_profile.public_key
+
+            # Crea i dati della transazione
+            transaction_data = {
+                'type': 'file',
+                'sender': request.user.id,
+                'receiver': receiver_profile.user.id,
+                'sender_public_key': sender_public_key,
+                'content': '',  # Per i file, il contenuto è vuoto
+                'timestamp': time.time(),
+                'is_encrypted': is_encrypted,
+                'is_shareable': is_shareable
+            }
+            
+            # Gestione del file
+            encrypted_symmetric_key_for_db = None
+
+            if is_encrypted:
+                try:
+                    # Genera una chiave simmetrica per la cifratura del file
+                    symmetric_key = Fernet.generate_key()
+                    f = Fernet(symmetric_key)
+                    encrypted_file_content = f.encrypt(file_content)
+
+                    # Cifra la chiave simmetrica con la chiave pubblica RSA del destinatario
+                    receiver_public_key = serialization.load_pem_public_key(
+                        receiver_profile.public_key.encode(),
+                        backend=default_backend()
+                    )
+                    encrypted_symmetric_key_for_db = receiver_public_key.encrypt(
+                        symmetric_key,
+                        padding.OAEP(
+                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                            algorithm=hashes.SHA256(),
+                            label=None
+                        )
+                    )
+                    
+                    # Cifra la chiave simmetrica per il mittente
+                    sender_public_key_obj = serialization.load_pem_public_key(
+                        user_profile.public_key.encode(),
+                        backend=default_backend()
+                    )
+                    sender_encrypted_symmetric_key = sender_public_key_obj.encrypt(
+                        symmetric_key,
+                        padding.OAEP(
+                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                            algorithm=hashes.SHA256(),
+                            label=None
+                        )
+                    )
+                    
+                    filename = f"{uuid.uuid4().hex}.encrypted"
+                    file_to_save = ContentFile(encrypted_file_content)
+                    transaction_data['original_filename'] = original_filename
+                    transaction_data['encrypted_symmetric_key'] = encrypted_symmetric_key_for_db.hex()
+                    transaction_data['sender_encrypted_symmetric_key'] = sender_encrypted_symmetric_key.hex()
+                    transaction_data['receiver_public_key_at_encryption'] = receiver_profile.public_key
+
+                except Exception as e:
+                    messages.error(request, f'Errore durante la cifratura del file: {str(e)}')
+                    return redirect('Cripto1:send_document_as_transaction', document_id=document_id)
+            else:
+                filename = f"{time.time()}_{original_filename}"
+                file_to_save = ContentFile(file_content)
+
+            file_path = default_storage.save(f'transaction_files/{filename}', file_to_save)
+            transaction_data['file'] = file_path
+
+            # Calcola l'hash della transazione
+            transaction_string_for_signing = json.dumps(transaction_data, sort_keys=True).encode()
+            transaction_hash = hashlib.sha256(transaction_string_for_signing).hexdigest()
+            
+            # Firma la transazione
+            private_key = user_profile.decrypt_private_key(password=private_key_password.encode())
+            if not private_key:
+                messages.error(request, 'Errore durante il recupero della chiave privata.')
+                return redirect('Cripto1:send_document_as_transaction', document_id=document_id)
+            
+            data_to_sign = transaction_hash.encode()
+            signature = private_key.sign(
+                data_to_sign,
+                PSS(
+                    mgf=MGF1(hashes.SHA256()),
+                    salt_length=PSS.MAX_LENGTH
+                ),
+                hashes.SHA256()
+            )
+            
+            # Crea la transazione
+            new_tx = Transaction.objects.create(
+                type='file',
+                sender=request.user,
+                receiver=receiver_profile.user,
+                sender_public_key=sender_public_key,
+                content='',
+                file=transaction_data.get('file'),
+                timestamp=transaction_data['timestamp'],
+                transaction_hash=transaction_hash,
+                signature=signature.hex(),
+                is_encrypted=is_encrypted,
+                is_shareable=transaction_data.get('is_shareable', False),
+                original_filename=transaction_data.get('original_filename', ''),
+                encrypted_symmetric_key=bytes.fromhex(transaction_data['encrypted_symmetric_key']) if 'encrypted_symmetric_key' in transaction_data and transaction_data['encrypted_symmetric_key'] else None,
+                sender_encrypted_symmetric_key=bytes.fromhex(transaction_data['sender_encrypted_symmetric_key']) if 'sender_encrypted_symmetric_key' in transaction_data and transaction_data['sender_encrypted_symmetric_key'] else None,
+                receiver_public_key_at_encryption=transaction_data.get('receiver_public_key_at_encryption', ''),
+                max_downloads=max_downloads
+            )
+
+            # Aggiungi alle transazioni in sospeso
+            pending_transactions_ids = request.session.get('pending_transactions_ids', [])
+            pending_transactions_ids.append(new_tx.id)
+            request.session['pending_transactions_ids'] = pending_transactions_ids
+
+            messages.success(request, 'Transazione creata e firmata. In attesa di mining.')
+            return redirect('Cripto1:all_transactions')
+
+        except Exception as e:
+            messages.error(request, f'Errore durante la creazione della transazione: {str(e)}')
+            return redirect('Cripto1:send_document_as_transaction', document_id=document_id)
     
     return render(request, 'Cripto1/send_document_as_transaction.html', {'document': document})
-
 @login_required
 def add_transaction_file_to_personal_documents(request, transaction_id):
     tx = get_object_or_404(Transaction, id=transaction_id)
@@ -3215,6 +3409,222 @@ def file_manager(request):
     }
     
     return render(request, 'Cripto1/file_manager.html', context)
+
+@login_required
+@user_manager_forbidden
+def create_transaction_from_document(request, document_id):
+    # Recupera il documento personale
+    document = get_object_or_404(PersonalDocument, id=document_id, user=request.user)
+    user_profile = UserProfile.objects.get(user=request.user)
+    
+    # Verifica se l'utente ha il ruolo "external"
+    if user_profile.has_role('external'):
+        messages.error(request, 'Gli utenti con ruolo "external" non possono inviare transazioni.')
+        return redirect('Cripto1:personal_documents')
+    
+    if request.method == 'POST':
+        try:
+            receiver_key = request.POST.get('receiver_key')
+            is_encrypted = request.POST.get('is_encrypted', 'false').lower() in ['true', 'on', '1']
+            is_shareable = request.POST.get('is_shareable', 'false').lower() in ['true', 'on', '1']
+            private_key_password = request.POST.get('private_key_password')
+            max_downloads_str = request.POST.get('max_downloads')
+            max_downloads = int(max_downloads_str) if max_downloads_str and max_downloads_str.isdigit() else None
+            
+            receiver_profile = UserProfile.objects.filter(user_key=receiver_key).first()
+            if not receiver_profile:
+                messages.error(request, 'Destinatario non trovato.')
+                return redirect('Cripto1:send_document_as_transaction', document_id=document_id)
+            receiver = receiver_profile.user
+
+            # Leggi il file dal documento personale
+            with default_storage.open(document.file.name, 'rb') as f:
+                file_content = f.read()
+            
+            # Se il documento è cifrato, prima decifralo
+            if document.is_encrypted:
+                try:
+                    # Decifra la chiave simmetrica con la chiave privata dell'utente
+                    decrypted_private_key = user_profile.decrypt_private_key(password=private_key_password.encode())
+                    if not decrypted_private_key:
+                        messages.error(request, 'Password della chiave privata errata.')
+                        return redirect('Cripto1:send_document_as_transaction', document_id=document_id)
+                    
+                    symmetric_key = decrypted_private_key.decrypt(
+                        document.encrypted_symmetric_key,
+                        padding.OAEP(
+                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                            algorithm=hashes.SHA256(),
+                            label=None
+                        )
+                    )
+                    
+                    # Decifra il contenuto del file
+                    f = Fernet(symmetric_key)
+                    file_content = f.decrypt(file_content)
+                    
+                    # Usa il nome originale del file
+                    original_filename = document.original_filename
+                except Exception as e:
+                    messages.error(request, f'Errore durante la decifratura del documento: {str(e)}')
+                    return redirect('Cripto1:send_document_as_transaction', document_id=document_id)
+            else:
+                original_filename = os.path.basename(document.file.name)
+
+            # Salva la chiave pubblica del mittente
+            sender_public_key = user_profile.public_key
+
+            # Crea i dati della transazione
+            transaction_data = {
+                'type': 'file',
+                'sender': request.user.id,
+                'receiver': receiver.id,
+                'sender_public_key': sender_public_key,
+                'content': '',  # Per i file, il contenuto è vuoto
+                'timestamp': time.time(),
+                'is_encrypted': is_encrypted,
+                'is_shareable': is_shareable
+            }
+            
+            # Gestione del file
+            encrypted_symmetric_key_for_db = None
+
+            if is_encrypted:
+                try:
+                    # Genera una chiave simmetrica per la cifratura del file
+                    symmetric_key = Fernet.generate_key()
+                    f = Fernet(symmetric_key)
+                    encrypted_file_content = f.encrypt(file_content)
+
+                    # Cifra la chiave simmetrica con la chiave pubblica RSA del destinatario
+                    receiver_public_key = serialization.load_pem_public_key(
+                        receiver_profile.public_key.encode(),
+                        backend=default_backend()
+                    )
+                    encrypted_symmetric_key_for_db = receiver_public_key.encrypt(
+                        symmetric_key,
+                        padding.OAEP(
+                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                            algorithm=hashes.SHA256(),
+                            label=None
+                        )
+                    )
+                    
+                    # Cifra la chiave simmetrica per il mittente
+                    sender_public_key_obj = serialization.load_pem_public_key(
+                        user_profile.public_key.encode(),
+                        backend=default_backend()
+                    )
+                    sender_encrypted_symmetric_key = sender_public_key_obj.encrypt(
+                        symmetric_key,
+                        padding.OAEP(
+                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                            algorithm=hashes.SHA256(),
+                            label=None
+                        )
+                    )
+                    
+                    filename = f"{uuid.uuid4().hex}.encrypted"
+                    file_to_save = ContentFile(encrypted_file_content)
+                    transaction_data['original_filename'] = original_filename
+                    transaction_data['encrypted_symmetric_key'] = encrypted_symmetric_key_for_db.hex()
+                    transaction_data['sender_encrypted_symmetric_key'] = sender_encrypted_symmetric_key.hex()
+                    transaction_data['receiver_public_key_at_encryption'] = receiver_profile.public_key
+
+                except Exception as e:
+                    messages.error(request, f'Errore durante la cifratura del file: {str(e)}')
+                    return redirect('Cripto1:send_document_as_transaction', document_id=document_id)
+            else:
+                filename = f"{time.time()}_{original_filename}"
+                file_to_save = ContentFile(file_content)
+
+            file_path = default_storage.save(f'transaction_files/{filename}', file_to_save)
+            transaction_data['file'] = file_path
+
+            # Calcola l'hash della transazione
+            transaction_string_for_signing = json.dumps(transaction_data, sort_keys=True).encode()
+            transaction_hash = hashlib.sha256(transaction_string_for_signing).hexdigest()
+            
+            # Firma la transazione
+            private_key = user_profile.decrypt_private_key(password=private_key_password.encode())
+            if not private_key:
+                messages.error(request, 'Errore durante il recupero della chiave privata.')
+                return redirect('Cripto1:send_document_as_transaction', document_id=document_id)
+            
+            data_to_sign = transaction_hash.encode()
+            signature = private_key.sign(
+                data_to_sign,
+                PSS(
+                    mgf=MGF1(hashes.SHA256()),
+                    salt_length=PSS.MAX_LENGTH
+                ),
+                hashes.SHA256()
+            )
+            
+            # Crea la transazione
+            new_tx = Transaction.objects.create(
+                type='file',
+                sender=request.user,
+                receiver=receiver,
+                sender_public_key=sender_public_key,
+                content='',
+                file=transaction_data.get('file'),
+                timestamp=transaction_data['timestamp'],
+                transaction_hash=transaction_hash,
+                signature=signature.hex(),
+                is_encrypted=is_encrypted,
+                is_shareable=transaction_data.get('is_shareable', False),
+                original_filename=transaction_data.get('original_filename', ''),
+                encrypted_symmetric_key=bytes.fromhex(transaction_data['encrypted_symmetric_key']) if 'encrypted_symmetric_key' in transaction_data and transaction_data['encrypted_symmetric_key'] else None,
+                sender_encrypted_symmetric_key=bytes.fromhex(transaction_data['sender_encrypted_symmetric_key']) if 'sender_encrypted_symmetric_key' in transaction_data and transaction_data['sender_encrypted_symmetric_key'] else None,
+                receiver_public_key_at_encryption=transaction_data.get('receiver_public_key_at_encryption', ''),
+                max_downloads=max_downloads
+            )
+
+            # Aggiungi alle transazioni in sospeso
+            pending_transactions_ids = request.session.get('pending_transactions_ids', [])
+            pending_transactions_ids.append(new_tx.id)
+            request.session['pending_transactions_ids'] = pending_transactions_ids
+
+            messages.success(request, 'Transazione creata e firmata. In attesa di mining.')
+            return redirect('Cripto1:all_transactions')
+
+        except Exception as e:
+            messages.error(request, f'Errore durante la creazione della transazione: {str(e)}')
+            return redirect('Cripto1:send_document_as_transaction', document_id=document_id)
+
+    # Se GET, mostra il form di invio documento
+    return render(request, 'Cripto1/send_document_as_transaction.html', {'document': document})
+
+@login_required
+def manage_user_storage(request, user_id):
+    """Vista per gestire la quota storage di un utente (solo manager)"""
+    user = get_object_or_404(User, id=user_id)
+    user_profile = user.userprofile
+    
+    if request.method == 'POST':
+        new_quota_gb = request.POST.get('storage_quota_gb')
+        try:
+            new_quota_bytes = int(float(new_quota_gb) * 1024 * 1024 * 1024)
+            user_profile.storage_quota_bytes = new_quota_bytes
+            user_profile.save()
+            messages.success(request, f'Quota storage aggiornata a {new_quota_gb}GB per {user.username}')
+            return redirect('Cripto1:user_detail', user_id=user_id)
+        except ValueError:
+            messages.error(request, 'Valore quota non valido')
+    
+    # Aggiorna l'utilizzo corrente
+    user_profile.update_storage_usage()
+    
+    context = {
+        'user': user,
+        'user_profile': user_profile,
+        'storage_quota_gb': user_profile.get_storage_quota_gb(),
+        'storage_used_gb': user_profile.get_storage_used_gb(),
+        'storage_percentage': user_profile.get_storage_percentage(),
+    }
+    
+    return render(request, 'Cripto1/manage_user_storage.html', context)
 
 def format_file_size(size_bytes):
     """Formatta la dimensione del file in un formato leggibile"""

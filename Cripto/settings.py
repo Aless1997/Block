@@ -60,6 +60,7 @@ MIDDLEWARE = [
     'Cripto1.middleware.AuditLogMiddleware',  # Middleware per audit log
     'Cripto1.middleware.SecurityMiddleware',  # Middleware per sicurezza e gestione login
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'Cripto1.middleware.RoleExpirationMiddleware',  # Middleware per disattivare ruoli scaduti
 ]
 
 ROOT_URLCONF = 'Cripto.urls'
@@ -75,6 +76,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+
             ],
         },
     },
@@ -143,3 +145,16 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Error pages
 HANDLER403 = 'Cripto1.views.permission_denied'
+
+import sentry_sdk
+
+
+# Email Configuration for Gmail
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'ale.social97@gmail.com'  # Sostituisci con la tua email
+EMAIL_HOST_PASSWORD = 'rrjw hjms kxyz mhie'  # Usa una App Password di Google
+DEFAULT_FROM_EMAIL = 'FortySeal <ale.social97@gmail.com>'
+SERVER_EMAIL = 'ale.social97@gmail.com'

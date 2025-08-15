@@ -8,6 +8,7 @@ from django.views.decorators.http import require_POST
 from django.utils import timezone
 from datetime import timedelta
 import json
+from datetime import datetime
 
 from .models import UserProfile, Role, Permission, UserRole, AuditLog
 from .decorators import permission_required, admin_required
@@ -120,11 +121,15 @@ def user_detail(request, user_id):
     # Attività recenti dell'utente
     recent_activities = AuditLog.objects.filter(user=user_profile.user).order_by('-timestamp')[:20]
     
+    # Aggiungi questa riga per passare tutti i ruoli al template
+    all_roles = Role.objects.filter(is_active=True)
+    
     context = {
         'user_profile': user_profile,
         'user_roles': user_roles,
-        'available_roles': available_roles,
         'recent_activities': recent_activities,
+        'now': timezone.now(),
+        'all_roles': all_roles,  # Aggiungi questa riga
     }
     
     return render(request, 'Cripto1/user_management/user_detail.html', context)
@@ -289,7 +294,9 @@ def assign_role(request, user_id):
         expires_date = None
         if expires_at:
             try:
-                expires_date = timezone.datetime.strptime(expires_at, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+                # Modifica qui: utilizziamo timezone.make_aware con timezone.get_default_timezone()
+                naive_date = datetime.strptime(expires_at, '%Y-%m-%d')
+                expires_date = timezone.make_aware(naive_date)
             except ValueError:
                 messages.error(request, 'Formato data non valido')
                 return redirect('Cripto1:user_detail', user_id=user_id)
@@ -643,3 +650,19 @@ def view_user_2fa_qrcode(request, user_id):
     }
     
     return render(request, 'Cripto1/user_management/user_2fa_qrcode.html', context)
+
+
+@permission_required('assign_roles')
+def assign_role_form(request, user_id):
+    """Form per assegnazione ruolo"""
+    user_profile = get_object_or_404(UserProfile, user_id=user_id)
+    
+    # Ruoli disponibili per l'assegnazione
+    all_roles = Role.objects.filter(is_active=True)
+    
+    context = {
+        'user_profile': user_profile,
+        'all_roles': all_roles,
+    }
+    
+    return render(request, 'Cripto1/user_management/assign_role_form.html', context)

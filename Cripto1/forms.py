@@ -7,6 +7,11 @@ class UserProfileEditForm(forms.ModelForm):
     first_name = forms.CharField(max_length=30, required=False, label='Nome')
     last_name = forms.CharField(max_length=30, required=False, label='Cognome')
     email = forms.EmailField(required=True, label='Email')
+    profile_picture = forms.ImageField(
+        required=False,
+        label='Foto Profilo',
+        widget=forms.FileInput(attrs={'accept': 'image/*'})
+    )
     
     class Meta:
         model = UserProfile
@@ -137,4 +142,4 @@ class UserSearchForm(forms.Form):
         queryset=Role.objects.filter(is_active=True),
         required=False,
         label='Ruolo'
-    ) 
+    )

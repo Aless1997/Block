@@ -197,7 +197,21 @@ class FileUploadSecurityMiddleware(MiddlewareMixin):
         self.max_file_size = 10 * 1024 * 1024  # 10MB
 
     def process_request(self, request):
-        if request.method == 'POST' and request.FILES:
+        if request.method == 'POST' and request.FILES and request.user.is_authenticated:
+            # Controlla la quota storage dell'utente
+            try:
+                user_profile = request.user.userprofile
+                user_profile.update_storage_usage()  # Aggiorna l'utilizzo corrente
+                
+                total_upload_size = sum(file.size for file in request.FILES.values())
+                
+                if not user_profile.has_storage_available(total_upload_size):
+                    messages.error(request, f'Quota storage superata. Hai a disposizione {user_profile.get_storage_quota_gb():.1f}GB, attualmente utilizzati {user_profile.get_storage_used_gb():.1f}GB.')
+                    return redirect(request.path)
+                    
+            except Exception as e:
+                print(f"Errore controllo quota storage: {e}")
+            
             for field_name, file in request.FILES.items():
                 # 1. Controllo estensione
                 file_extension = file.name.split('.')[-1].lower()
@@ -336,3 +350,29 @@ class FileUploadSecurityMiddleware(MiddlewareMixin):
         else:
             ip = request.META.get('REMOTE_ADDR')
         return ip
+
+
+class RoleExpirationMiddleware(MiddlewareMixin):
+    """Middleware per disattivare automaticamente i ruoli scaduti"""
+    
+    def process_request(self, request):
+        # Esegui questa operazione solo occasionalmente per non sovraccaricare il sistema
+        # Ad esempio, con una probabilità del 5%
+        import random
+        if random.random() < 0.05:  # 5% delle richieste
+            from Cripto1.models import UserRole
+            from django.utils import timezone
+            
+            # Trova tutti i ruoli scaduti ma ancora attivi
+            expired_roles = UserRole.objects.filter(
+                is_active=True,
+                expires_at__lt=timezone.now()
+            )
+            
+            # Disattivali
+            count = expired_roles.count()
+            if count > 0:
+                expired_roles.update(is_active=False)
+                print(f"[INFO] Disattivati {count} ruoli scaduti")
+        
+        return None

@@ -1,8 +1,8 @@
-from functools import wraps
 from django.shortcuts import redirect
 from django.contrib import messages
 from django.http import HttpResponseForbidden
 from django.contrib.auth.decorators import login_required
+from functools import wraps  # Aggiunta questa importazione mancante
 from .models import UserProfile, AuditLog
 
 
@@ -176,4 +176,45 @@ def active_user_required(redirect_url=None):
                 return redirect('Cripto1:login')
                 
         return _wrapped_view
-    return decorator 
+    return decorator
+
+
+def external_forbidden(view_func):
+    """Decoratore per impedire l'accesso agli utenti con ruolo 'external'"""
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('Cripto1:login')
+        
+        try:
+            user_profile = UserProfile.objects.get(user=request.user)
+            if user_profile.has_role('external'):
+                messages.error(request, 'Gli utenti con ruolo "external" non possono accedere a questa funzionalità')
+                return redirect('Cripto1:dashboard')
+            return view_func(request, *args, **kwargs)
+        except UserProfile.DoesNotExist:
+            messages.error(request, 'Profilo utente non trovato.')
+            return redirect('Cripto1:login')
+    return _wrapped_view
+
+
+def user_manager_forbidden(view_func):
+    """Decoratore per impedire l'accesso agli utenti con ruolo 'User Manager'"""
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('Cripto1:login')
+        
+        try:
+            user_profile = UserProfile.objects.get(user=request.user)
+            
+            # Verifica se l'utente ha il ruolo User Manager
+            if user_profile.has_role('User Manager'):
+                messages.error(request, 'Gli utenti con ruolo "User Manager" non possono accedere a questa funzionalità')
+                return redirect('Cripto1:dashboard')
+                
+            return view_func(request, *args, **kwargs)
+        except UserProfile.DoesNotExist:
+            messages.error(request, 'Profilo utente non trovato.')
+            return redirect('Cripto1:login')
+    return _wrapped_view

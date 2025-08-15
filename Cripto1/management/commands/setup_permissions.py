@@ -97,6 +97,13 @@ class Command(BaseCommand):
                 'description': 'Utente standard del sistema',
                 'is_system_role': False,
                 'permissions': ['view_transactions', 'create_transactions']
+            },
+            # Aggiungiamo il ruolo external
+            {
+                'name': 'external',
+                'description': 'Utente esterno con accesso limitato',
+                'is_system_role': False,
+                'permissions': ['view_transactions']
             }
         ]
         
@@ -159,4 +166,4 @@ class Command(BaseCommand):
         self.stdout.write(f'  Assegnazioni ruoli: {total_user_roles}')
         
         self.stdout.write(self.style.SUCCESS('\n=== CONFIGURAZIONE COMPLETATA ==='))
-        self.stdout.write('\nPer testare i permessi, visita: /debug/permissions/') 
+        self.stdout.write('\nPer testare i permessi, visita: /debug/permissions/')

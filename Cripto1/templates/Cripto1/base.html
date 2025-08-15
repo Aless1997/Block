@@ -236,29 +236,6 @@
     </div>
 
     {% if user.is_authenticated %}
-    <!-- Mobile Bottom Navigation -->
-    <div class="mobile-bottom-nav d-none d-sm-none"> <!-- Aggiungi classi Bootstrap per nascondere su desktop -->
-        <a href="{% url 'Cripto1:dashboard' %}" class="ripple {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
-            <i class="fas fa-home"></i>
-            <span>Home</span>
-        </a>
-        <a href="{% url 'Cripto1:all_transactions' %}" class="ripple {% if request.resolver_match.url_name == 'all_transactions' %}active{% endif %}">
-            <i class="fas fa-exchange-alt"></i>
-            <span>Transazioni</span>
-        </a>
-        <a href="{% url 'Cripto1:create_transaction' %}" class="ripple {% if request.resolver_match.url_name == 'create_transaction' %}active{% endif %}">
-            <i class="fas fa-plus-circle"></i>
-            <span>Crea</span>
-        </a>
-        <a href="{% url 'Cripto1:users_feed' %}" class="ripple {% if request.resolver_match.url_name == 'users_feed' %}active{% endif %}">
-            <i class="fas fa-users"></i>
-            <span>Utenti</span>
-        </a>
-        <a href="{% url 'Cripto1:personal_profile' %}" class="ripple {% if request.resolver_match.url_name == 'personal_profile' %}active{% endif %}">
-            <i class="fas fa-user"></i>
-            <span>Profilo</span>
-        </a>
-    </div>
     {% endif %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -267,7 +244,8 @@
     {% block extra_js %}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Codice esistente per handleBottomNav
+            // Commenta o rimuovi questa funzione
+            /*
             function handleBottomNav() {
                 var bottomNav = document.querySelector('.mobile-bottom-nav');
                 if (bottomNav) {
@@ -284,6 +262,7 @@
             
             // Esegui al ridimensionamento della finestra
             window.addEventListener('resize', handleBottomNav);
+            */
         });
     </script>
     {% endblock %}

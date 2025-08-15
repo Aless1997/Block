@@ -5,6 +5,7 @@ from . import user_management_views  # Aggiungi questa riga
 from django.contrib.auth import views as auth_views
 from django.urls import reverse_lazy
 from django.urls import path
+from .decorators import external_forbidden
 
 app_name = 'Cripto1'
 
@@ -18,13 +19,13 @@ urlpatterns = [
     path('dashboard/', views.dashboard, name='dashboard'),
     path('profile/', views.personal_profile, name='personal_profile'),
     path('profile/edit/', views.edit_profile, name='edit_profile'),
-    path('users/', views.users_feed, name='users_feed'),
+    path('users/', external_forbidden(views.users_feed), name='users_feed'),  # Spostato qui
     path('all-transactions/', views.all_transactions_view, name='all_transactions'),
     path('unviewed-transactions/', views.unviewed_transactions_list, name='unviewed_transactions_list'),
 
 
     # Transaction URLs
-    path('transaction/create/', views.create_transaction, name='create_transaction'),
+    path('transaction/create/', external_forbidden(views.create_transaction), name='create_transaction'),  # Spostato qui
     path('transaction/<int:transaction_id>/', views.transaction_details, name='transaction_details'),
     path('transaction/<int:transaction_id>/download/', views.download_file, name='download_file'),
     path('transaction/decrypt/', views.decrypt_transaction, name='decrypt_transaction'),
@@ -50,7 +51,8 @@ urlpatterns = [
     path('user-management/users/<int:user_id>/', views.user_detail, name='user_detail'),
     path('user-management/users/<int:user_id>/edit/', views.edit_user, name='edit_user'),
     path('user-management/users/<int:user_id>/toggle-status/', views.toggle_user_status, name='toggle_user_status'),
-    path('user-management/users/<int:user_id>/assign-role/', views.assign_role, name='assign_role'),
+    path('user-management/users/<int:user_id>/assign-role/', user_management_views.assign_role, name='assign_role'),
+    path('user-management/users/<int:user_id>/assign-role-form/', user_management_views.assign_role_form, name='assign_role_form'),
     path('user-management/users/<int:user_id>/remove-role/<int:role_id>/', views.remove_role, name='remove_role'),
 
     
@@ -58,6 +60,7 @@ urlpatterns = [
     path('user-management/roles/', views.role_list, name='role_list'),
     path('user-management/roles/create/', views.create_role, name='create_role'),
     path('user-management/roles/<int:role_id>/', views.role_detail, name='role_detail'),
+    path('users/<int:user_id>/storage/', views.manage_user_storage, name='manage_user_storage'),
 
     # Debug URLs
     path('debug/permissions/', views.debug_permissions, name='debug_permissions'),
@@ -76,6 +79,7 @@ urlpatterns = [
     path('documents/<int:document_id>/view/', views.view_personal_document, name='view_personal_document'),  # Nuova URL
     path('documents/<int:document_id>/delete/', views.delete_personal_document, name='delete_personal_document'),
     path('documents/<int:document_id>/send/', views.send_document_as_transaction, name='send_document_as_transaction'),
+    path('documents/<int:document_id>/create-transaction/', views.create_transaction_from_document, name='create_transaction_from_document'),  # Spostato qui
     path('transactions/<int:transaction_id>/add-to-personal-documents/', views.add_transaction_file_to_personal_documents, name='add_transaction_file_to_personal_documents'),
     # Django admin (deve essere l'ULTIMA e fuori dal blocco app)
     path('admin/', admin.site.urls),
@@ -93,4 +97,5 @@ urlpatterns = [
     path('user-management/user/<int:user_id>/2fa-qrcode/', user_management_views.view_user_2fa_qrcode, name='view_user_2fa_qrcode'),
     # File Manager URLs
     path('admdashboard/file-manager/', views.file_manager, name='file_manager'),
+
 ]
