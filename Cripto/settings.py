@@ -53,14 +53,15 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',  # Spostato qui
+    'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'Cripto1.middleware.AuditLogMiddleware',  # Middleware per audit log
-    'Cripto1.middleware.SecurityMiddleware',  # Middleware per sicurezza e gestione login
+    'django.contrib.auth.middleware.AuthenticationMiddleware',  # DEVE ESSERE PRIMA
+    'Cripto1.session_security.AdvancedSessionSecurityMiddleware',  # SPOSTATO DOPO AUTH
+    'Cripto1.middleware.AuditLogMiddleware',
+    'Cripto1.middleware.SecurityMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'Cripto1.middleware.RoleExpirationMiddleware',  # Middleware per disattivare ruoli scaduti
+    'Cripto1.middleware.RoleExpirationMiddleware',
 ]
 
 ROOT_URLCONF = 'Cripto.urls'
@@ -155,6 +156,43 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'ale.social97@gmail.com'  # Sostituisci con la tua email
-EMAIL_HOST_PASSWORD = 'rrjw hjms kxyz mhie'  # Usa una App Password di Google
+EMAIL_HOST_PASSWORD = 'gjbf jpze aowb gtxx'  # Usa una App Password di Google
 DEFAULT_FROM_EMAIL = 'FortySeal <ale.social97@gmail.com>'
 SERVER_EMAIL = 'ale.social97@gmail.com'
+
+
+# Session Security Configuration
+SESSION_COOKIE_AGE = 1800  # 30 minuti (già presente)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_SAVE_EVERY_REQUEST = True  # Rinnova la sessione ad ogni richiesta
+
+# Configurazioni avanzate di sessione
+SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only in produzione
+SESSION_COOKIE_HTTPONLY = True  # Previene accesso via JavaScript
+SESSION_COOKIE_SAMESITE = 'Strict'  # Protezione CSRF
+SESSION_COOKIE_NAME = 'cripto_sessionid'  # Nome personalizzato
+
+# Timeout configurabili per diversi tipi di utenti
+SESSION_TIMEOUT_ADMIN = 3600  # 1 ora per admin
+SESSION_TIMEOUT_USER = 1800   # 30 minuti per utenti normali
+SESSION_TIMEOUT_EXTERNAL = 900  # 15 minuti per utenti esterni
+
+# Configurazioni di sicurezza sessione
+SESSION_SECURITY_ENABLED = True
+SESSION_MAX_CONCURRENT = 3  # Massimo 3 sessioni simultanee per utente
+SESSION_IP_VALIDATION = True  # Valida IP della sessione
+SESSION_USER_AGENT_VALIDATION = True  # Valida User-Agent
+SESSION_INACTIVITY_TIMEOUT = 900  # 15 minuti di inattività
+
+# Cache per gestione sessioni
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    },
+    'sessions': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'session-cache',
+        'TIMEOUT': 3600,
+    }
+}

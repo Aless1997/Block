@@ -41,6 +41,9 @@ import io
 import re
 from .decorators import permission_required, role_required, admin_required, active_user_required, external_forbidden, user_manager_forbidden
 from .email_utils import send_welcome_email, send_transaction_notification, send_block_confirmation_emails
+from django.core.cache import caches
+from django.contrib.sessions.models import Session
+from django.contrib.auth.decorators import user_passes_test
 
 cipher_suite = Fernet(settings.FERNET_KEY)
 
@@ -3636,3 +3639,92 @@ def format_file_size(size_bytes):
         return f"{size_bytes / (1024 * 1024):.1f} MB"
     else:
         return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def session_management(request):
+    """Vista per gestire le sessioni attive"""
+    session_cache = caches['sessions'] if 'sessions' in settings.CACHES else caches['default']
+    
+    # Ottieni tutte le sessioni attive
+    active_sessions = []
+    all_sessions = Session.objects.filter(expire_date__gte=timezone.now())
+    
+    for session in all_sessions:
+        session_data = session.get_decoded()
+        user_id = session_data.get('_auth_user_id')
+        if user_id:
+            try:
+                user = User.objects.get(id=user_id)
+                cache_key = f'user_sessions_{user_id}'
+                user_sessions = session_cache.get(cache_key, [])
+                
+                active_sessions.append({
+                    'session_key': session.session_key,
+                    'user': user,
+                    'expire_date': session.expire_date,
+                    'last_activity': session_data.get('_last_activity'),
+                    'ip_address': session_data.get('_session_ip'),
+                    'concurrent_count': len(user_sessions)
+                })
+            except User.DoesNotExist:
+                continue
+                
+    context = {
+        'active_sessions': active_sessions,
+        'total_sessions': len(active_sessions)
+    }
+    
+    return render(request, 'Cripto1/session_management.html', context)
+
+@login_required
+def terminate_session(request):
+    """Termina una sessione specifica"""
+    if request.method == 'POST':
+        # Gestisci sia i dati POST che JSON
+        if request.content_type == 'application/json':
+            import json
+            try:
+                data = json.loads(request.body)
+                session_key = data.get('session_key')
+            except json.JSONDecodeError:
+                return JsonResponse({'success': False, 'message': 'Dati JSON non validi'})
+        else:
+            session_key = request.POST.get('session_key')
+            
+        if session_key and request.user.is_staff:
+            try:
+                session = Session.objects.get(session_key=session_key)
+                session.delete()
+                return JsonResponse({'success': True, 'message': 'Sessione terminata con successo'})
+            except Session.DoesNotExist:
+                return JsonResponse({'success': False, 'message': 'Sessione non trovata'})
+        return JsonResponse({'success': False, 'message': 'Permessi insufficienti'})
+    return JsonResponse({'success': False, 'message': 'Metodo non consentito'})
+
+@login_required
+def my_sessions(request):
+    """Vista per l'utente per vedere le proprie sessioni"""
+    session_cache = caches['sessions'] if 'sessions' in settings.CACHES else caches['default']
+    cache_key = f'user_sessions_{request.user.id}'
+    user_sessions = session_cache.get(cache_key, [])
+    
+    current_time = timezone.now().timestamp()
+    active_sessions = []
+    
+    for session_data in user_sessions:
+        if session_data['expires'] > current_time:
+            active_sessions.append({
+                'session_key': session_data['session_key'][:8] + '...',  # Mostra solo parte della chiave
+                'last_activity': timezone.datetime.fromtimestamp(session_data['last_activity']),
+                'ip_address': session_data['ip_address'],
+                'user_agent': session_data['user_agent'],
+                'is_current': session_data['session_key'] == request.session.session_key
+            })
+            
+    context = {
+        'active_sessions': active_sessions,
+        'max_concurrent': getattr(settings, 'SESSION_MAX_CONCURRENT', 3)
+    }
+    
+    return render(request, 'Cripto1/my_sessions.html', context)

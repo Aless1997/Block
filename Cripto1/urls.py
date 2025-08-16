@@ -97,5 +97,10 @@ urlpatterns = [
     path('user-management/user/<int:user_id>/2fa-qrcode/', user_management_views.view_user_2fa_qrcode, name='view_user_2fa_qrcode'),
     # File Manager URLs
     path('admdashboard/file-manager/', views.file_manager, name='file_manager'),
+    
+    # Session Management URLs - AGGIUNTE CORRETTAMENTE
+    path('management/sessions/', views.session_management, name='session_management'),
+    path('management/sessions/terminate/', views.terminate_session, name='terminate_session'),
+    path('my-sessions/', views.my_sessions, name='my_sessions'),
 
-]
+]  # Chiusura della lista urlpatterns

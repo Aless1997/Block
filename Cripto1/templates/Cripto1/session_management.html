@@ -1,0 +1,78 @@
+{% extends 'Cripto1/base.html' %}
+
+{% block title %}Gestione Sessioni{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Gestione Sessioni Attive</h2>
+    <p>Totale sessioni attive: <strong>{{ total_sessions }}</strong></p>
+    
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Utente</th>
+                    <th>Sessione</th>
+                    <th>Ultima Attività</th>
+                    <th>IP Address</th>
+                    <th>Scadenza</th>
+                    <th>Sessioni Concorrenti</th>
+                    <th>Azioni</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for session in active_sessions %}
+                <tr>
+                    <td>{{ session.user.username }}</td>
+                    <td><code>{{ session.session_key|slice:":8" }}...</code></td>
+                    <td>
+                        {% if session.last_activity %}
+                            {{ session.last_activity|date:"d/m/Y H:i:s" }}
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </td>
+                    <td>{{ session.ip_address|default:"N/A" }}</td>
+                    <td>{{ session.expire_date|date:"d/m/Y H:i:s" }}</td>
+                    <td>
+                        <span class="badge badge-info">{{ session.concurrent_count }}</span>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="terminateSession('{{ session.session_key }}')">Termina</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center">Nessuna sessione attiva</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function terminateSession(sessionKey) {
+    if (confirm('Sei sicuro di voler terminare questa sessione?')) {
+        const formData = new FormData();
+        formData.append('session_key', sessionKey);
+        
+        fetch('{% url "Cripto1:terminate_session" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Errore: ' + data.message);
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

@@ -32,7 +32,7 @@ urlpatterns = [
     path('accounts/password_change/done/', auth_views.PasswordChangeDoneView.as_view(
         template_name='Cripto1/registration/password_change_done.html'
     ), name='password_change_done'),
-    path('', include('Cripto1.urls', namespace='Cripto1')),
+    path('', include('Cripto1.urls')),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
 ]
 

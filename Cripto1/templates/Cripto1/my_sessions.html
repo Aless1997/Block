@@ -1,0 +1,57 @@
+{% extends 'Cripto1/base.html' %}
+
+{% block title %}Le Mie Sessioni{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Le Mie Sessioni Attive</h2>
+    <p>Totale sessioni attive: <strong>{{ total_sessions }}</strong></p>
+    
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Chiave Sessione</th>
+                    <th>Ultima Attività</th>
+                    <th>Indirizzo IP</th>
+                    <th>Scadenza</th>
+                    <th>Azioni</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for session in user_sessions %}
+                <tr>
+                    <td>{{ session.session_key|truncatechars:20 }}</td>
+                    <td>{{ session.last_activity|default:"N/A" }}</td>
+                    <td>{{ session.ip_address|default:"N/A" }}</td>
+                    <td>{{ session.expire_date }}</td>
+                    <td>
+                        {% if session.session_key != request.session.session_key %}
+                        <form method="post" action="{% url 'Cripto1:terminate_session' %}" style="display: inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="session_key" value="{{ session.session_key }}">
+                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Sei sicuro di voler terminare questa sessione?')">
+                                <i class="fas fa-times"></i> Termina
+                            </button>
+                        </form>
+                        {% else %}
+                        <span class="badge bg-success">Sessione Corrente</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center">Nessuna sessione attiva trovata.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="mt-3">
+        <a href="{% url 'Cripto1:dashboard' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Torna alla Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}
